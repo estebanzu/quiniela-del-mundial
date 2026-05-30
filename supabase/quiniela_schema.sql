@@ -311,11 +311,11 @@ begin
     )
   );
 
-  -- 2. Delete predictions for demo matches first (prevents foreign key violation)
+  -- 2. Delete predictions for demo/test matches first (prevents foreign key violation)
   delete from public.predictions
   where match_id in (
     select id from public.matches
-    where home_team like 'Demo-%'
+    where home_team like 'Demo-%' or match_date < '2026-06-11 00:00:00+00'
   );
 
   -- 3. Delete dummy users from auth.users
@@ -330,12 +330,12 @@ begin
   );
   get diagnostics deleted_users_count = row_count;
 
-  -- 4. Delete demo matches
+  -- 4. Delete demo/test matches
   delete from public.matches
-  where home_team like 'Demo-%';
+  where home_team like 'Demo-%' or match_date < '2026-06-11 00:00:00+00';
   get diagnostics deleted_matches_count = row_count;
 
-  return '¡Dummies y partidos de prueba eliminados! Usuarios eliminados: ' || deleted_users_count || ', Partidos demo eliminados: ' || deleted_matches_count || '.';
+  return '¡Dummies y partidos de prueba eliminados! Usuarios eliminados: ' || deleted_users_count || ', Partidos demo y pruebas eliminados: ' || deleted_matches_count || '.';
 end;
 $$;
 

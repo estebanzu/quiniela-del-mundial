@@ -538,6 +538,16 @@ export default function DashboardPage() {
     setDeletingDummies(true)
     setError('')
     try {
+      // 1. Delete all matches scheduled before June 11, 2026 directly via Supabase client.
+      // (This will cascade delete any predictions for those matches)
+      const { error: deleteMatchesErr } = await supabase
+        .from('matches')
+        .delete()
+        .lt('match_date', '2026-06-11T00:00:00Z')
+
+      if (deleteMatchesErr) throw deleteMatchesErr
+
+      // 2. Call the database RPC to delete dummy users and Demo-% matches
       const { data, error: rpcError } = await supabase.rpc('delete_dummies_and_tests')
       if (rpcError) throw rpcError
       
