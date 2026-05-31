@@ -318,6 +318,19 @@ function parseAllPhases() {
   const outputPath = path.resolve(__dirname, 'matches_all_phases.json')
   fs.writeFileSync(outputPath, JSON.stringify(finalMatches, null, 2), 'utf-8')
   console.log(`Successfully parsed ${finalMatches.length} matches and saved to ${outputPath}`)
+
+  // Generate SQL seed file for Supabase
+  const sqlOutputPath = path.resolve(__dirname, 'seed_matches.sql')
+  const sqlStatements = finalMatches.map(m => {
+    const home = m.home_team.replace(/'/g, "''")
+    const away = m.away_team.replace(/'/g, "''")
+    const group = m.group.replace(/'/g, "''")
+    const venue = m.venue.replace(/'/g, "''")
+    return `INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (${m.id}, '${home}', '${away}', '${group}', '${venue}', '${m.match_date}', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;`
+  })
+  
+  fs.writeFileSync(sqlOutputPath, sqlStatements.join('\n'), 'utf-8')
+  console.log(`Successfully generated SQL seed file at ${sqlOutputPath}`)
 }
 
 parseAllPhases()

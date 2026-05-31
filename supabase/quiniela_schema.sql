@@ -553,6 +553,17 @@ create policy user_logins_insert_own on public.user_logins
   for insert
   with check (auth.uid() = user_id);
 
+drop policy if exists user_logins_update_own on public.user_logins;
+create policy user_logins_update_own on public.user_logins
+  for update
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+drop policy if exists user_logins_select_own on public.user_logins;
+create policy user_logins_select_own on public.user_logins
+  for select
+  using (auth.uid() = user_id);
+
 drop policy if exists user_logins_select_admin on public.user_logins;
 create policy user_logins_select_admin on public.user_logins
   for select
@@ -646,6 +657,191 @@ begin
   where d.login_date >= current_date - interval '13 days'
   group by d.login_date
   order by d.login_date asc;
+end;
+$$;
+
+
+-- ==========================================
+-- WORLD CUP EMULATION & PHASE LEADERBOARD
+-- ==========================================
+
+-- Function to emulate the entire World Cup phase by phase
+create or replace function public.emulate_world_cup()
+returns text
+language plpgsql
+security definer
+as $$
+declare
+  m_id int;
+  p_home int;
+  p_away int;
+  res text;
+begin
+  -- Validate that requester is admin
+  if auth.jwt() ->> 'email' != 'admin@quiniela.local' then
+    raise exception 'Acceso denegado. Solo administradores.';
+  end if;
+
+  -- 1. Reset all matches status and scores
+  update public.matches
+  set home_score = null,
+      away_score = null,
+      status = 'pending'
+  where id is not null;
+
+  -- 2. Restore original teams for matches 73 to 104
+  update public.matches set home_team = '2º Grupo A', away_team = '2º Grupo B' where id = 73;
+  update public.matches set home_team = '1º Grupo E', away_team = '3º Grupo A/B/C/D/F' where id = 74;
+  update public.matches set home_team = '1º Grupo F', away_team = '2º Grupo C' where id = 75;
+  update public.matches set home_team = '1º Grupo C', away_team = '2º Grupo F' where id = 76;
+  update public.matches set home_team = '1º Grupo I', away_team = '3º Grupo C/D/F/G/H' where id = 77;
+  update public.matches set home_team = '2º Grupo E', away_team = '2º Grupo I' where id = 78;
+  update public.matches set home_team = '1º Grupo A', away_team = '3º Grupo C/E/F/H/I' where id = 79;
+  update public.matches set home_team = '1º Grupo L', away_team = '3º Grupo E/H/I/J/K' where id = 80;
+  update public.matches set home_team = '1º Grupo D', away_team = '3º Grupo B/E/F/I/J' where id = 81;
+  update public.matches set home_team = '1º Grupo G', away_team = '3º Grupo A/E/H/I/J' where id = 82;
+  update public.matches set home_team = '2º Grupo K', away_team = '2º Grupo L' where id = 83;
+  update public.matches set home_team = '1º Grupo H', away_team = '2º Grupo J' where id = 84;
+  update public.matches set home_team = '1º Grupo B', away_team = '3º Grupo E/F/G/I/J' where id = 85;
+  update public.matches set home_team = '1º Grupo J', away_team = '2º Grupo H' where id = 86;
+  update public.matches set home_team = '1º Grupo K', away_team = '3º Grupo D/E/I/J/L' where id = 87;
+  update public.matches set home_team = '2º Grupo D', away_team = '2º Grupo G' where id = 88;
+  update public.matches set home_team = 'Ganador Partido 74', away_team = 'Ganador Partido 77' where id = 89;
+  update public.matches set home_team = 'Ganador Partido 73', away_team = 'Ganador Partido 75' where id = 90;
+  update public.matches set home_team = 'Ganador Partido 76', away_team = 'Ganador Partido 78' where id = 91;
+  update public.matches set home_team = 'Ganador Partido 79', away_team = 'Ganador Partido 80' where id = 92;
+  update public.matches set home_team = 'Ganador Partido 83', away_team = 'Ganador Partido 84' where id = 93;
+  update public.matches set home_team = 'Ganador Partido 81', away_team = 'Ganador Partido 82' where id = 94;
+  update public.matches set home_team = 'Ganador Partido 86', away_team = 'Ganador Partido 88' where id = 95;
+  update public.matches set home_team = 'Ganador Partido 85', away_team = 'Ganador Partido 87' where id = 96;
+  update public.matches set home_team = 'Ganador Partido 89', away_team = 'Ganador Partido 90' where id = 97;
+  update public.matches set home_team = 'Ganador Partido 93', away_team = 'Ganador Partido 94' where id = 98;
+  update public.matches set home_team = 'Ganador Partido 91', away_team = 'Ganador Partido 92' where id = 99;
+  update public.matches set home_team = 'Ganador Partido 95', away_team = 'Ganador Partido 96' where id = 100;
+  update public.matches set home_team = 'Ganador Partido 97', away_team = 'Ganador Partido 98' where id = 101;
+  update public.matches set home_team = 'Ganador Partido 99', away_team = 'Ganador Partido 100' where id = 102;
+  update public.matches set home_team = 'Perdedor Partido 101', away_team = 'Perdedor Partido 102' where id = 103;
+  update public.matches set home_team = 'Ganador Partido 101', away_team = 'Ganador Partido 102' where id = 104;
+
+  -- 3. Seed dummy users and predictions
+  res := public.seed_dummies_and_predictions();
+
+  -- 4. Emulate Phase 1: Group Stage (matches 1..72)
+  for m_id in 1..72 loop
+    p_home := floor(random() * 5);
+    p_away := floor(random() * 5);
+    update public.matches
+    set home_score = p_home,
+        away_score = p_away,
+        status = 'finished'
+    where id = m_id;
+  end loop;
+
+  -- 5. Emulate Phase 2: Round of 32 (matches 73..88)
+  for m_id in 73..88 loop
+    p_home := floor(random() * 4);
+    p_away := floor(random() * 4);
+    if p_home = p_away then
+      p_home := p_home + 1;
+    end if;
+    update public.matches
+    set home_score = p_home,
+        away_score = p_away,
+        status = 'finished'
+    where id = m_id;
+  end loop;
+
+  -- 6. Emulate Phase 3: Round of 16 (matches 89..96)
+  for m_id in 89..96 loop
+    p_home := floor(random() * 4);
+    p_away := floor(random() * 4);
+    if p_home = p_away then
+      p_home := p_home + 1;
+    end if;
+    update public.matches
+    set home_score = p_home,
+        away_score = p_away,
+        status = 'finished'
+    where id = m_id;
+  end loop;
+
+  -- 7. Emulate Phase 4: Quarterfinals (matches 97..100)
+  for m_id in 97..100 loop
+    p_home := floor(random() * 4);
+    p_away := floor(random() * 4);
+    if p_home = p_away then
+      p_home := p_home + 1;
+    end if;
+    update public.matches
+    set home_score = p_home,
+        away_score = p_away,
+        status = 'finished'
+    where id = m_id;
+  end loop;
+
+  -- 8. Emulate Phase 5: Semifinals (matches 101..102)
+  for m_id in 101..102 loop
+    p_home := floor(random() * 4);
+    p_away := floor(random() * 4);
+    if p_home = p_away then
+      p_home := p_home + 1;
+    end if;
+    update public.matches
+    set home_score = p_home,
+        away_score = p_away,
+        status = 'finished'
+    where id = m_id;
+  end loop;
+
+  -- 9. Emulate Phase 6: Third Place and Final (matches 103..104)
+  for m_id in 103..104 loop
+    p_home := floor(random() * 4);
+    p_away := floor(random() * 4);
+    if p_home = p_away then
+      p_home := p_home + 1;
+    end if;
+    update public.matches
+    set home_score = p_home,
+        away_score = p_away,
+        status = 'finished'
+    where id = m_id;
+  end loop;
+
+  return '¡Emulación completa del Mundial finalizada con éxito! Todos los partidos han sido jugados y los puntos de las predicciones de los 5 usuarios dummy calculados.';
+end;
+$$;
+
+-- Function to compute leaderboard by phase
+create or replace function public.get_leaderboard_by_phase()
+returns table(
+  username text,
+  fase1 bigint,
+  fase2 bigint,
+  fase3 bigint,
+  fase4 bigint,
+  fase5 bigint,
+  fase6 bigint,
+  total_points bigint
+)
+language plpgsql
+security definer
+as $$
+begin
+  return query
+  select 
+    split_part(u.email, '@', 1)::text as username,
+    coalesce(sum(case when p.match_id >= 1 and p.match_id <= 72 then p.points else 0 end), 0)::bigint as fase1,
+    coalesce(sum(case when p.match_id >= 73 and p.match_id <= 88 then p.points else 0 end), 0)::bigint as fase2,
+    coalesce(sum(case when p.match_id >= 89 and p.match_id <= 96 then p.points else 0 end), 0)::bigint as fase3,
+    coalesce(sum(case when p.match_id >= 97 and p.match_id <= 100 then p.points else 0 end), 0)::bigint as fase4,
+    coalesce(sum(case when p.match_id >= 101 and p.match_id <= 102 then p.points else 0 end), 0)::bigint as fase5,
+    coalesce(sum(case when p.match_id >= 103 and p.match_id <= 104 then p.points else 0 end), 0)::bigint as fase6,
+    coalesce(sum(p.points), 0)::bigint as total_points
+  from auth.users u
+  left join public.predictions p on u.id = p.user_id
+  where u.email like '%@quiniela.local' and u.email != 'admin@quiniela.local'
+  group by u.email
+  order by total_points desc, username asc;
 end;
 $$;
 

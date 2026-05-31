@@ -9,6 +9,8 @@ type Match = {
   home_team: string
   away_team: string
   match_date: string
+  stage_group?: string
+  venue?: string
   home_score: number | null
   away_score: number | null
   status: 'pending' | 'finished'
@@ -135,11 +137,162 @@ const groupsData = [
   }
 ]
 
+const DB_TEAM_TO_SPANISH: Record<string, string> = {
+  'Algeria': 'Argelia',
+  'Argentina': 'Argentina',
+  'Australia': 'Australia',
+  'Austria': 'Austria',
+  'Belgium': 'Bélgica',
+  'Bosnia and Herzegovina': 'Bosnia-Herzegovina',
+  'Brazil': 'Brasil',
+  'Cabo Verde': 'Cabo Verde',
+  'Canada': 'Canadá',
+  'Colombia': 'Colombia',
+  'Congo DR': 'R. D. del Congo',
+  'Croatia': 'Croacia',
+  'Curaçao': 'Curazao',
+  'Czechia': 'Chequia',
+  "Côte d'Ivoire": 'Costa de Marfil',
+  "Côte'Ivoire": 'Costa de Marfil',
+  'Ecuador': 'Ecuador',
+  'Egypt': 'Egipto',
+  'England': 'Inglaterra',
+  'France': 'Francia',
+  'Germany': 'Alemania',
+  'Ghana': 'Ghana',
+  'Haiti': 'Haití',
+  'IR Iran': 'Irán',
+  'Iraq': 'Irak',
+  'Japan': 'Japón',
+  'Jordan': 'Jordania',
+  'Korea Republic': 'Corea del Sur',
+  'Mexico': 'México',
+  'Morocco': 'Marruecos',
+  'Netherlands': 'Países Bajos',
+  'New Zealand': 'Nueva Zelanda',
+  'Norway': 'Noruega',
+  'Panama': 'Panamá',
+  'Paraguay': 'Paraguay',
+  'Portugal': 'Portugal',
+  'Qatar': 'Qatar',
+  'Saudi Arabia': 'Arabia Saudita',
+  'Scotland': 'Escocia',
+  'Senegal': 'Senegal',
+  'South Africa': 'Sudáfrica',
+  'Spain': 'España',
+  'Sweden': 'Suecia',
+  'Switzerland': 'Suiza',
+  'Tunisia': 'Túnez',
+  'Türkiye': 'Turquía',
+  'USA': 'EE. UU.',
+  'Uruguay': 'Uruguay',
+  'Uzbekistan': 'Uzbekistán'
+}
+
+type TeamStandings = {
+  name: string
+  flag: string
+  pj: number
+  pg: number
+  pe: number
+  pp: number
+  gf: number
+  gc: number
+  gd: number
+  pts: number
+}
+
+function getGroupStandings(groupName: string, matchesList: Match[]): TeamStandings[] {
+  const group = groupsData.find(g => g.name === groupName)
+  if (!group) return []
+
+  const standings: Record<string, TeamStandings> = {}
+
+  group.teams.forEach(team => {
+    standings[team.name] = {
+      name: team.name,
+      flag: team.flag,
+      pj: 0,
+      pg: 0,
+      pe: 0,
+      pp: 0,
+      gf: 0,
+      gc: 0,
+      gd: 0,
+      pts: 0
+    }
+  })
+
+  // Filter matches for this group
+  const groupMatches = matchesList.filter(m => {
+    const mGroup = m.stage_group || ''
+    return mGroup.trim().toLowerCase() === groupName.trim().toLowerCase()
+  })
+
+  // Compute standings stats
+  groupMatches.forEach(match => {
+    if (match.status === 'finished' && match.home_score !== null && match.away_score !== null) {
+      const homeName = DB_TEAM_TO_SPANISH[match.home_team] || match.home_team
+      const awayName = DB_TEAM_TO_SPANISH[match.away_team] || match.away_team
+
+      const homeStats = standings[homeName]
+      const awayStats = standings[awayName]
+
+      if (homeStats && awayStats) {
+        homeStats.pj += 1
+        awayStats.pj += 1
+
+        homeStats.gf += match.home_score
+        homeStats.gc += match.away_score
+        awayStats.gf += match.away_score
+        awayStats.gc += match.home_score
+
+        if (match.home_score > match.away_score) {
+          homeStats.pg += 1
+          homeStats.pts += 3
+          awayStats.pp += 1
+        } else if (match.home_score < match.away_score) {
+          awayStats.pg += 1
+          awayStats.pts += 3
+          homeStats.pp += 1
+        } else {
+          homeStats.pe += 1
+          awayStats.pe += 1
+          homeStats.pts += 1
+          awayStats.pts += 1
+        }
+
+        homeStats.gd = homeStats.gf - homeStats.gc
+        awayStats.gd = awayStats.gf - awayStats.gc
+      }
+    }
+  })
+
+  // Sort according to FIFA rules: points, GD, GF, alphabetical name
+  return Object.values(standings).sort((a, b) => {
+    if (b.pts !== a.pts) return b.pts - a.pts
+    if (b.gd !== a.gd) return b.gd - a.gd
+    if (b.gf !== a.gf) return b.gf - a.gf
+    return a.name.localeCompare(b.name)
+  })
+}
+
+const fallbackNews = [
+  { title: "Mundial 2026: La gran cita en Norteamérica con 48 selecciones", source: "FIFA", link: "https://www.fifa.com" },
+  { title: "Estadio Azteca abrirá el torneo inaugural de la Copa Mundial", source: "Récord", link: "https://www.fifa.com" },
+  { title: "Los Ángeles y Nueva York listos para recibir las semifinales y final", source: "ESPN", link: "https://www.fifa.com" },
+  { title: "Canadá se prepara para recibir la acción mundialista en Toronto y Vancouver", source: "Fox Sports", link: "https://www.fifa.com" },
+  { title: "Fifa anuncia calendario oficial para los 104 partidos del torneo", source: "Marca", link: "https://www.fifa.com" },
+  { title: "Nuevas reglas y formatos: Grupos de 4 equipos confirmados", source: "FIFA", link: "https://www.fifa.com" },
+]
+
 export default function DashboardPage() {
   const router = useRouter()
   const [mounted, setMounted] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
   const [username, setUsername] = useState('Usuario')
+  const [userEmail, setUserEmail] = useState('')
+  const [dropdownOpen, setDropdownOpen] = useState(false)
   const [matches, setMatches] = useState<Match[]>([])
   const [predictions, setPredictions] = useState<Record<number, Prediction>>({})
   const [loading, setLoading] = useState(true)
@@ -147,12 +300,40 @@ export default function DashboardPage() {
   const [filter, setFilter] = useState<'all' | 'pending' | 'finished'>('all')
   const [seeding, setSeeding] = useState(false)
   const [syncing, setSyncing] = useState(false)
-  const [testingPoints, setTestingPoints] = useState(false)
+  const [emulatingWorldCup, setEmulatingWorldCup] = useState(false)
   const [seedingDummies, setSeedingDummies] = useState(false)
   const [deletingDummies, setDeletingDummies] = useState(false)
   const [adminMode, setAdminMode] = useState(false)
   const [leaderboard, setLeaderboard] = useState<{ username: string; total_points: number; predictions_count: number }[]>([])
-  const [viewMode, setViewMode] = useState<'predictions' | 'schedule' | 'groups' | 'admin'>('predictions')
+  const [phaseLeaderboard, setPhaseLeaderboard] = useState<{
+    username: string;
+    fase1: number;
+    fase2: number;
+    fase3: number;
+    fase4: number;
+    fase5: number;
+    fase6: number;
+    total_points: number;
+  }[]>([])
+  const [news, setNews] = useState<any[]>([])
+  const [viewMode, setViewMode] = useState<'predictions' | 'schedule' | 'groups' | 'phases' | 'admin'>('predictions')
+  const [activeGroupIndex, setActiveGroupIndex] = useState(0)
+
+  // Keyboard navigation for groups carousel
+  useEffect(() => {
+    if (viewMode !== 'groups') return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') {
+        setActiveGroupIndex((prev) => (prev === 0 ? groupsData.length - 1 : prev - 1))
+      } else if (e.key === 'ArrowRight') {
+        setActiveGroupIndex((prev) => (prev === groupsData.length - 1 ? 0 : prev + 1))
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [viewMode])
 
   // Admin Panel states
   const [adminUsers, setAdminUsers] = useState<{ id: string; email: string; created_at: string; last_sign_in_at: string | null }[]>([])
@@ -311,6 +492,7 @@ export default function DashboardPage() {
       
       // Extract username from email (e.g. messi10@quiniela.local -> messi10)
       if (user.email) {
+        setUserEmail(user.email)
         const namePart = user.email.split('@')[0]
         setUsername(namePart.charAt(0).toUpperCase() + namePart.slice(1))
         if (namePart.toLowerCase() === 'admin') {
@@ -337,6 +519,23 @@ export default function DashboardPage() {
       subscription?.unsubscribe()
     }
   }, [router])
+
+  useEffect(() => {
+    const loadNews = async () => {
+      try {
+        const res = await fetch('/api/news')
+        if (res.ok) {
+          const data = await res.json()
+          if (data.news && data.news.length > 0) {
+            setNews(data.news)
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load news:', err)
+      }
+    }
+    loadNews()
+  }, [])
 
   const loadMatchesAndPredictions = async (uid: string) => {
     try {
@@ -374,6 +573,16 @@ export default function DashboardPage() {
         console.error('Error fetching leaderboard:', leaderboardErr)
       } else {
         setLeaderboard(leaderboardData || [])
+      }
+
+      // Fetch phase leaderboard
+      const { data: phaseLeaderboardData, error: phaseLeaderboardErr } = await supabase
+        .rpc('get_leaderboard_by_phase')
+
+      if (phaseLeaderboardErr) {
+        console.error('Error fetching phase leaderboard:', phaseLeaderboardErr)
+      } else {
+        setPhaseLeaderboard(phaseLeaderboardData || [])
       }
     } catch (err: any) {
       console.error(err)
@@ -414,104 +623,26 @@ export default function DashboardPage() {
       setSyncing(false)
     }
   }
-  const handlePointsSelfTest = async () => {
+
+  const handleWorldCupEmulation = async () => {
     if (!userId) return
-    setTestingPoints(true)
+    setEmulatingWorldCup(true)
     setError('')
     try {
-      // 1. Delete existing demo matches (will cascade delete predictions due to foreign keys)
-      const { error: deleteErr } = await supabase
-        .from('matches')
-        .delete()
-        .like('home_team', 'Demo-%')
-
-      if (deleteErr) throw deleteErr
-
-      // 2. Insert 5 matches as 'pending' (kickoff set to 2 hours from now to bypass lock)
-      const testKickoff = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString()
-      const demoMatches = [
-        { home_team: 'Demo-Argentina', away_team: 'Demo-Francia', match_date: testKickoff, status: 'pending' },
-        { home_team: 'Demo-Brasil', away_team: 'Demo-Alemania', match_date: testKickoff, status: 'pending' },
-        { home_team: 'Demo-España', away_team: 'Demo-Italia', match_date: testKickoff, status: 'pending' },
-        { home_team: 'Demo-Inglaterra', away_team: 'Demo-Portugal', match_date: testKickoff, status: 'pending' },
-        { home_team: 'Demo-México', away_team: 'Demo-Uruguay', match_date: testKickoff, status: 'pending' },
-      ]
-
-      const { data: matchesData, error: insertMatchesErr } = await supabase
-        .from('matches')
-        .insert(demoMatches)
-        .select()
-
-      if (insertMatchesErr) throw insertMatchesErr
-      if (!matchesData || matchesData.length !== 5) {
-        throw new Error('No se pudieron crear los partidos de la autoprueba.')
-      }
-
-      // Find match IDs
-      const mArgFra = matchesData.find(m => m.home_team === 'Demo-Argentina')!
-      const mBraGer = matchesData.find(m => m.home_team === 'Demo-Brasil')!
-      const mEspIta = matchesData.find(m => m.home_team === 'Demo-España')!
-      const mEngPor = matchesData.find(m => m.home_team === 'Demo-Inglaterra')!
-      const mMexUru = matchesData.find(m => m.home_team === 'Demo-México')!
-
-      // 3. Insert predictions for the current user
-      const demoPredictions = [
-        { user_id: userId, match_id: mArgFra.id, predicted_home: 3, predicted_away: 3 }, // Expect 5 (Exact Match 3-3)
-        { user_id: userId, match_id: mBraGer.id, predicted_home: 1, predicted_away: 0 }, // Expect 3 (Correct Winner 2-1)
-        { user_id: userId, match_id: mEspIta.id, predicted_home: 2, predicted_away: 2 }, // Expect 1 (Correct Draw 1-1)
-        { user_id: userId, match_id: mEngPor.id, predicted_home: 0, predicted_away: 1 }, // Expect 0 (Wrong outcome 2-0)
-        { user_id: userId, match_id: mMexUru.id, predicted_home: 1, predicted_away: 1 }, // Expect 0 (Wrong outcome 0-2)
-      ]
-
-      const { error: insertPredsErr } = await supabase
-        .from('predictions')
-        .insert(demoPredictions)
-
-      if (insertPredsErr) throw insertPredsErr
-
-      // 4. Update the matches to 'finished' with official scores to trigger PostgreSQL points calculations
-      const updates = [
-        { id: mArgFra.id, home_score: 3, away_score: 3, status: 'finished' },
-        { id: mBraGer.id, home_score: 2, away_score: 1, status: 'finished' },
-        { id: mEspIta.id, home_score: 1, away_score: 1, status: 'finished' },
-        { id: mEngPor.id, home_score: 2, away_score: 0, status: 'finished' },
-        { id: mMexUru.id, home_score: 0, away_score: 2, status: 'finished' },
-      ]
-
-      // Update them one by one to make sure each trigger runs
-      for (const update of updates) {
-        const { error: updateErr } = await supabase
-          .from('matches')
-          .update({
-            home_score: update.home_score,
-            away_score: update.away_score,
-            status: update.status
-          })
-          .eq('id', update.id)
-
-        if (updateErr) throw updateErr
-      }
-
-      // 5. Reload data
+      const { data, error: rpcError } = await supabase.rpc('emulate_world_cup')
+      if (rpcError) throw rpcError
+      
+      // Reload matches and predictions
       await loadMatchesAndPredictions(userId)
-      alert(
-        '¡Autoprueba completada con éxito!\n\n' +
-        'Se crearon 5 partidos demo y se registraron tus predicciones.\n' +
-        'El trigger de Supabase calculó los puntos automáticamente:\n' +
-        '1. Demo-Argentina vs Francia: Predicho 3-3, Quedó 3-3 -> 5 PTS (Exacto)\n' +
-        '2. Demo-Brasil vs Alemania: Predicho 1-0, Quedó 2-1 -> 3 PTS (Ganador)\n' +
-        '3. Demo-España vs Italia: Predicho 2-2, Quedó 1-1 -> 1 PTS (Empate)\n' +
-        '4. Demo-Inglaterra vs Portugal: Predicho 0-1, Quedó 2-0 -> 0 PTS (Fallo)\n' +
-        '5. Demo-México vs Uruguay: Predicho 1-1, Quedó 0-2 -> 0 PTS (Fallo)\n\n' +
-        'Puntos totales sumados: +9 PTS'
-      )
+      alert(data || '¡Emulación completa del Mundial finalizada con éxito!')
     } catch (err: any) {
       console.error(err)
-      setError(err.message || 'Error durante la autoprueba de puntos.')
+      setError(err.message || 'Error al emular el Mundial.')
     } finally {
-      setTestingPoints(false)
+      setEmulatingWorldCup(false)
     }
   }
+
 
   const handleSeedDummies = async () => {
     if (!userId) return
@@ -691,8 +822,18 @@ export default function DashboardPage() {
     )
   }
 
+  // Max phase points for trophy badges
+  const maxes = {
+    f1: phaseLeaderboard.length ? Math.max(...phaseLeaderboard.map(u => Number(u.fase1) || 0)) : 0,
+    f2: phaseLeaderboard.length ? Math.max(...phaseLeaderboard.map(u => Number(u.fase2) || 0)) : 0,
+    f3: phaseLeaderboard.length ? Math.max(...phaseLeaderboard.map(u => Number(u.fase3) || 0)) : 0,
+    f4: phaseLeaderboard.length ? Math.max(...phaseLeaderboard.map(u => Number(u.fase4) || 0)) : 0,
+    f5: phaseLeaderboard.length ? Math.max(...phaseLeaderboard.map(u => Number(u.fase5) || 0)) : 0,
+    f6: phaseLeaderboard.length ? Math.max(...phaseLeaderboard.map(u => Number(u.fase6) || 0)) : 0,
+  }
+
   return (
-    <div className="relative min-h-screen bg-transparent text-white pb-12 overflow-x-hidden">
+    <div className="relative min-h-screen bg-transparent text-white pb-24 overflow-x-hidden">
       {/* Stadium/Field Backdrop */}
       <div className="absolute top-0 inset-x-0 h-80 bg-[radial-gradient(circle_at_50%_-20%,rgba(0,212,255,0.15),transparent_70%)] pointer-events-none" />
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#0f172a_1px,transparent_1px),linear-gradient(to_bottom,#0f172a_1px,transparent_1px)] bg-[size:5rem_5rem] [mask-image:linear-gradient(to_bottom,white_30%,transparent_100%)] opacity-20 pointer-events-none" />
@@ -736,24 +877,24 @@ export default function DashboardPage() {
                    <span>Sincronizar API</span>
                 </button>
 
-                {/* Points Self-Test Button */}
+                {/* World Cup Emulation Button */}
                 <button
                   type="button"
-                  onClick={handlePointsSelfTest}
-                  disabled={testingPoints}
+                  onClick={handleWorldCupEmulation}
+                  disabled={emulatingWorldCup}
                   className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-amber-400 hover:text-amber-300 hover:border-slate-700 transition text-sm font-semibold cursor-pointer disabled:opacity-50"
                 >
-                  {testingPoints ? (
+                  {emulatingWorldCup ? (
                     <svg className="animate-spin h-4 w-4 text-amber-400" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
                   ) : (
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138z"></path>
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
                     </svg>
                   )}
-                  <span>Autoprueba Puntos</span>
+                  <span>Emular Mundial</span>
                 </button>
 
                 {/* Seed Dummies Button */}
@@ -845,6 +986,17 @@ export default function DashboardPage() {
             }`}
           >
             🏆 Grupos del Mundial
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('phases')}
+            className={`pb-4 px-2 font-bold text-xs uppercase tracking-wider transition-all border-b-2 flex items-center gap-2 cursor-pointer whitespace-nowrap ${
+              viewMode === 'phases'
+                ? 'border-primary text-primary font-extrabold'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            📊 Tabla por Fases
           </button>
           {username.toLowerCase() === 'admin' && (
             <button
@@ -1150,9 +1302,16 @@ export default function DashboardPage() {
                             {/* Kickoff time */}
                             <div className="flex items-center gap-3 shrink-0">
                               <span className="w-2 h-2 rounded-full bg-primary/60"></span>
-                              <span className="text-sm font-black text-slate-300 font-mono">
-                                {mTime}
-                              </span>
+                              <div className="flex flex-col">
+                                <span className="text-sm font-black text-slate-300 font-mono">
+                                  {mTime}
+                                </span>
+                                {(match.stage_group || match.venue) && (
+                                  <span className="text-[9px] text-slate-500 font-semibold max-w-[120px] truncate">
+                                    {match.stage_group || match.venue}
+                                  </span>
+                                )}
+                              </div>
                             </div>
 
                             {/* Match Matchup */}
@@ -1191,57 +1350,268 @@ export default function DashboardPage() {
           </section>
         )}
 
-        {viewMode === 'groups' && (
-          /* World Cup 2026 Groups View Layout */
+        {viewMode === 'groups' && (() => {
+          const activeGroup = groupsData[activeGroupIndex]
+          return (
+            /* World Cup 2026 Groups View Layout (Carousel) */
+            <section className="mt-8 animate-fadeIn">
+              <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                    🏆 Grupos del Mundial 2026
+                  </h3>
+                  <p className="text-sm text-slate-400 mt-1">
+                    Progreso y clasificación en tiempo real de las 48 selecciones según los resultados oficiales. Usa las flechas o las teclas <kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-xs font-mono">←</kbd> y <kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-xs font-mono">→</kbd> para navegar.
+                  </p>
+                </div>
+              </div>
+
+              {/* Group Selector Row */}
+              <div className="flex overflow-x-auto gap-2 mb-6 bg-slate-900/40 p-2 rounded-2xl border border-slate-800/40 max-w-2xl mx-auto [&::-webkit-scrollbar]:hidden [scrollbar-width:none] justify-start md:justify-center snap-x px-3 py-2.5 w-full">
+                {groupsData.map((group, idx) => {
+                  const isActive = idx === activeGroupIndex
+                  const groupLetter = group.name.replace('Grupo ', '')
+                  return (
+                    <button
+                      key={group.name}
+                      onClick={() => setActiveGroupIndex(idx)}
+                      className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs transition-all duration-300 cursor-pointer shrink-0 snap-center ${
+                        isActive
+                          ? 'bg-primary text-white shadow-lg shadow-primary/30 scale-110 border border-primary/20'
+                          : 'bg-slate-950 text-slate-450 border border-slate-900 hover:bg-slate-800 hover:text-white'
+                      }`}
+                    >
+                      {groupLetter}
+                    </button>
+                  )
+                })}
+              </div>
+
+              {/* Carousel Container */}
+              <div className="relative flex items-center justify-between gap-4 max-w-4xl mx-auto">
+                {/* Left Arrow Button */}
+                <button
+                  onClick={() => setActiveGroupIndex(prev => (prev === 0 ? groupsData.length - 1 : prev - 1))}
+                  className="w-12 h-12 rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-800 flex items-center justify-center text-slate-350 hover:text-white transition duration-300 shadow-md cursor-pointer shrink-0 hidden md:flex"
+                  aria-label="Grupo anterior"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-5 h-5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                  </svg>
+                </button>
+
+                {/* Central Card (Wider) */}
+                <div className="collectible-card w-full p-6 md:p-8 flex flex-col justify-between relative transition-all duration-300 bg-slate-900/60 border border-slate-800/80 rounded-3xl backdrop-blur-md overflow-hidden">
+                  <div>
+                    {/* Header of Nav Card */}
+                    <div className="flex items-center justify-between pb-4 border-b border-slate-800/60 mb-6">
+                      <span className="font-black text-lg tracking-wider text-slate-100 flex items-center gap-2">
+                        <span className="text-primary">⚽</span> {activeGroup.name}
+                      </span>
+                      <span className="text-[10px] font-bold px-3 py-1 rounded-full bg-slate-950 text-slate-400 border border-slate-800 uppercase tracking-widest">
+                        Fase 1 (Grupos)
+                      </span>
+                    </div>
+
+                    {/* Standings Table inside Nav Card */}
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse text-xs md:text-sm">
+                        <thead>
+                          <tr className="border-b border-slate-850 text-slate-450 font-bold uppercase text-[10px] md:text-xs tracking-wider">
+                            <th className="py-3 px-2 text-center w-12">Pos</th>
+                            <th className="py-3 px-2">Equipo</th>
+                            <th className="py-3 px-2 text-center w-12" title="Partidos Jugados">PJ</th>
+                            <th className="py-3 px-2 text-center w-10 hidden sm:table-cell" title="Ganados">G</th>
+                            <th className="py-3 px-2 text-center w-10 hidden sm:table-cell" title="Empatados">E</th>
+                            <th className="py-3 px-2 text-center w-10 hidden sm:table-cell" title="Perdidos">P</th>
+                            <th className="py-3 px-2 text-center w-14 hidden sm:table-cell" title="Goles a Favor">GF</th>
+                            <th className="py-3 px-2 text-center w-14 hidden sm:table-cell" title="Goles en Contra">GC</th>
+                            <th className="py-3 px-2 text-center w-12" title="Diferencia de Goles">DG</th>
+                            <th className="py-3 px-3 text-center w-16 text-primary font-black" title="Puntos">Pts</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {getGroupStandings(activeGroup.name, matches).map((teamStats, idx) => {
+                            const isTopTwo = idx < 2
+                            const isThird = idx === 2
+                            let posClass = "text-slate-400"
+                            let rowClass = "border-b border-slate-900/40 hover:bg-slate-900/30 transition-colors"
+                            
+                            if (isTopTwo) {
+                              posClass = "text-emerald-400 font-bold bg-emerald-950/40 rounded-full w-6 h-6 flex items-center justify-center mx-auto text-xs border border-emerald-900/30"
+                            } else if (isThird) {
+                              posClass = "text-blue-400 font-bold bg-blue-950/30 rounded-full w-6 h-6 flex items-center justify-center mx-auto text-xs border border-blue-900/20"
+                            } else {
+                              posClass = "text-slate-500 w-6 h-6 flex items-center justify-center mx-auto"
+                            }
+
+                            return (
+                              <tr key={teamStats.name} className={rowClass}>
+                                <td className="py-3.5 px-2 text-center">
+                                  <div className={posClass}>{idx + 1}</div>
+                                </td>
+                                <td className="py-3.5 px-2 font-bold text-slate-200">
+                                  <span className="flex items-center gap-3">
+                                    <span className="text-xl select-none" role="img" aria-label={`Bandera de ${teamStats.name}`}>
+                                      {teamStats.flag}
+                                    </span>
+                                    <span className="text-sm md:text-base font-semibold">{teamStats.name}</span>
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-2 text-center font-bold text-slate-300">{teamStats.pj}</td>
+                                <td className="py-3.5 px-2 text-center text-slate-400 hidden sm:table-cell">{teamStats.pg}</td>
+                                <td className="py-3.5 px-2 text-center text-slate-400 hidden sm:table-cell">{teamStats.pe}</td>
+                                <td className="py-3.5 px-2 text-center text-slate-400 hidden sm:table-cell">{teamStats.pp}</td>
+                                <td className="py-3.5 px-2 text-center text-slate-400 hidden sm:table-cell">{teamStats.gf}</td>
+                                <td className="py-3.5 px-2 text-center text-slate-400 hidden sm:table-cell">{teamStats.gc}</td>
+                                <td className={`py-3.5 px-2 text-center font-bold ${teamStats.gd > 0 ? 'text-emerald-400' : teamStats.gd < 0 ? 'text-rose-500' : 'text-slate-450'}`}>
+                                  {teamStats.gd > 0 ? `+${teamStats.gd}` : teamStats.gd}
+                                </td>
+                                <td className="py-3.5 px-3 text-center font-black text-primary text-base">{teamStats.pts}</td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Arrow Button */}
+                <button
+                  onClick={() => setActiveGroupIndex(prev => (prev === groupsData.length - 1 ? 0 : prev + 1))}
+                  className="w-12 h-12 rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-800 flex items-center justify-center text-slate-350 hover:text-white transition duration-300 shadow-md cursor-pointer shrink-0 hidden md:flex"
+                  aria-label="Grupo siguiente"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-5 h-5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Mobile Carousel Controls */}
+              <div className="flex justify-between items-center mt-6 md:hidden px-4">
+                <button
+                  onClick={() => setActiveGroupIndex(prev => (prev === 0 ? groupsData.length - 1 : prev - 1))}
+                  className="px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs font-bold text-slate-300 hover:text-white flex items-center gap-2 cursor-pointer"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-4 h-4">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                  </svg>
+                  Anterior
+                </button>
+
+                <span className="text-xs text-slate-450 font-semibold uppercase tracking-wider">
+                  {activeGroupIndex + 1} / {groupsData.length}
+                </span>
+
+                <button
+                  onClick={() => setActiveGroupIndex(prev => (prev === groupsData.length - 1 ? 0 : prev + 1))}
+                  className="px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs font-bold text-slate-300 hover:text-white flex items-center gap-2 cursor-pointer"
+                >
+                  Siguiente
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-4 h-4">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                  </svg>
+                </button>
+              </div>
+            </section>
+          )
+        })()}
+
+        {viewMode === 'phases' && (
           <section className="mt-8 animate-fadeIn">
             <div className="mb-6">
               <h3 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-                🏆 Grupos del Mundial 2026
+                📊 Tabla de Posiciones por Fases
               </h3>
               <p className="text-sm text-slate-400 mt-1">
-                Conoce la distribución oficial de las 48 selecciones clasificadas.
+                Visualiza el desglose de puntos obtenidos en cada una de las 6 fases del torneo. ¡El ganador de cada fase recibe un trofeo 🏆!
               </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
-              {groupsData.map((group) => (
-                <div
-                  key={group.name}
-                  className="collectible-card p-5 group select-none"
-                >
-                  {/* Header of Nav Card */}
-                  <div className="flex items-center justify-between pb-3.5 border-b border-slate-800/60 mb-4">
-                    <span className="font-black text-base tracking-wider text-slate-100 group-hover:text-primary transition-colors">
-                      {group.name}
-                    </span>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-950 text-slate-500 border border-slate-800 uppercase tracking-widest">
-                      Fase 1
-                    </span>
-                  </div>
+            <div className="glass-card overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-800 bg-slate-900/60 text-slate-400 font-bold uppercase text-xs tracking-wider">
+                      <th className="py-4 px-4 text-center w-16">Pos</th>
+                      <th className="py-4 px-4">Usuario</th>
+                      <th className="py-4 px-2 text-center w-28" title="Fase de Grupos (Partidos 1-72)">Fase 1 (Grupos)</th>
+                      <th className="py-4 px-2 text-center w-28" title="Dieciseisavos (Partidos 73-88)">Fase 2 (16avos)</th>
+                      <th className="py-4 px-2 text-center w-28" title="Octavos (Partidos 89-96)">Fase 3 (Octavos)</th>
+                      <th className="py-4 px-2 text-center w-28" title="Cuartos (Partidos 97-100)">Fase 4 (Cuartos)</th>
+                      <th className="py-4 px-2 text-center w-28" title="Semifinales (Partidos 101-102)">Fase 5 (Semis)</th>
+                      <th className="py-4 px-2 text-center w-28" title="Tercer Puesto y Final (Partidos 103-104)">Fase 6 (Finales)</th>
+                      <th className="py-4 px-4 text-center text-primary font-black w-28">Total Pts</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {phaseLeaderboard.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="py-8 text-center text-slate-500 font-semibold">
+                          No hay datos de emulación disponibles todavía. Presiona "Emular Mundial" en el Panel Admin.
+                        </td>
+                      </tr>
+                    ) : (
+                      phaseLeaderboard.map((row, idx) => {
+                        const isCurrentUser = username.toLowerCase() === (row.username || '').toLowerCase()
+                        const pos = idx + 1
+                        
+                        // Highlight first 3 users with gold/silver/bronze icons
+                        let posEl = <span>{pos}</span>
+                        if (pos === 1) posEl = <span className="text-xl">🥇</span>
+                        else if (pos === 2) posEl = <span className="text-xl">🥈</span>
+                        else if (pos === 3) posEl = <span className="text-xl">🥉</span>
 
-                  {/* Team list inside Nav Card */}
-                  <ul className="space-y-2.5">
-                    {group.teams.map((team, idx) => (
-                      <li
-                        key={team.name}
-                        className="flex items-center justify-between p-3 rounded-2xl bg-slate-950/40 border border-slate-900/60 hover:bg-slate-950/80 transition-colors duration-150"
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className="text-xl select-none" role="img" aria-label={`Bandera de ${team.name}`}>
-                            {team.flag}
-                          </span>
-                          <span className="text-sm font-extrabold text-slate-200">
-                            {team.name}
-                          </span>
-                        </div>
-                        <span className="text-[10px] font-bold text-slate-600">
-                          #{idx + 1}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
+                        return (
+                          <tr
+                            key={row.username || `row-${idx}`}
+                            className={`border-b border-slate-900 hover:bg-slate-900/30 transition-colors ${
+                              isCurrentUser ? 'bg-primary/5 font-extrabold text-white' : 'text-slate-300'
+                            }`}
+                          >
+                            <td className="py-3.5 px-4 text-center font-bold">{posEl}</td>
+                            <td className="py-3.5 px-4">
+                              <div className="flex items-center gap-2">
+                                <span className={`w-2 h-2 rounded-full ${isCurrentUser ? 'bg-primary animate-pulse' : 'bg-slate-700'}`}></span>
+                                <span className="truncate max-w-[120px]">{row.username || 'Desconocido'}</span>
+                                {isCurrentUser && <span className="text-[9px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded bg-primary/20 text-primary border border-primary/30 shrink-0">Tú</span>}
+                              </div>
+                            </td>
+                            {/* Phase 1 */}
+                            <td className={`py-3.5 px-2 text-center font-mono ${Number(row.fase1) === maxes.f1 && maxes.f1 > 0 ? 'text-amber-400 font-bold' : ''}`}>
+                              {row.fase1} {Number(row.fase1) === maxes.f1 && maxes.f1 > 0 ? '🏆' : ''}
+                            </td>
+                            {/* Phase 2 */}
+                            <td className={`py-3.5 px-2 text-center font-mono ${Number(row.fase2) === maxes.f2 && maxes.f2 > 0 ? 'text-amber-400 font-bold' : ''}`}>
+                              {row.fase2} {Number(row.fase2) === maxes.f2 && maxes.f2 > 0 ? '🏆' : ''}
+                            </td>
+                            {/* Phase 3 */}
+                            <td className={`py-3.5 px-2 text-center font-mono ${Number(row.fase3) === maxes.f3 && maxes.f3 > 0 ? 'text-amber-400 font-bold' : ''}`}>
+                              {row.fase3} {Number(row.fase3) === maxes.f3 && maxes.f3 > 0 ? '🏆' : ''}
+                            </td>
+                            {/* Phase 4 */}
+                            <td className={`py-3.5 px-2 text-center font-mono ${Number(row.fase4) === maxes.f4 && maxes.f4 > 0 ? 'text-amber-400 font-bold' : ''}`}>
+                              {row.fase4} {Number(row.fase4) === maxes.f4 && maxes.f4 > 0 ? '🏆' : ''}
+                            </td>
+                            {/* Phase 5 */}
+                            <td className={`py-3.5 px-2 text-center font-mono ${Number(row.fase5) === maxes.f5 && maxes.f5 > 0 ? 'text-amber-400 font-bold' : ''}`}>
+                              {row.fase5} {Number(row.fase5) === maxes.f5 && maxes.f5 > 0 ? '🏆' : ''}
+                            </td>
+                            {/* Phase 6 */}
+                            <td className={`py-3.5 px-2 text-center font-mono ${Number(row.fase6) === maxes.f6 && maxes.f6 > 0 ? 'text-amber-400 font-bold' : ''}`}>
+                              {row.fase6} {Number(row.fase6) === maxes.f6 && maxes.f6 > 0 ? '🏆' : ''}
+                            </td>
+                            {/* Total points */}
+                            <td className="py-3.5 px-4 text-center font-black text-primary text-base font-mono bg-slate-900/20">{row.total_points}</td>
+                          </tr>
+                        )
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </section>
         )}
@@ -1695,6 +2065,48 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* Google News RSS Ticker Footer */}
+        <footer className="fixed bottom-0 inset-x-0 h-16 bg-slate-950/95 border-t border-slate-900/60 backdrop-blur-md z-50 flex flex-col justify-center py-1 select-none overflow-hidden">
+          {/* Row 1 (scrolling left) */}
+          <div className="relative w-full overflow-hidden flex items-center h-6">
+            <div className="flex gap-8 whitespace-nowrap animate-marquee-left hover:[animation-play-state:paused] cursor-pointer">
+              {(news.length > 0 ? news.slice(0, 15) : fallbackNews.slice(0, 6)).map((item, idx) => (
+                <a key={`l1-${idx}`} href={item.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-[11px] text-slate-300 hover:text-primary transition-colors">
+                  <span className="text-primary font-extrabold uppercase text-[9px] px-1.5 py-0.5 rounded bg-primary/10 border border-primary/20 shrink-0">{item.source || 'Fifa'}</span>
+                  <span className="font-semibold">{item.title}</span>
+                  <span className="text-slate-600">|</span>
+                </a>
+              ))}
+              {(news.length > 0 ? news.slice(0, 15) : fallbackNews.slice(0, 6)).map((item, idx) => (
+                <a key={`l1-dup-${idx}`} href={item.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-[11px] text-slate-300 hover:text-primary transition-colors">
+                  <span className="text-primary font-extrabold uppercase text-[9px] px-1.5 py-0.5 rounded bg-primary/10 border border-primary/20 shrink-0">{item.source || 'Fifa'}</span>
+                  <span className="font-semibold">{item.title}</span>
+                  <span className="text-slate-600">|</span>
+                </a>
+              ))}
+            </div>
+          </div>
+          {/* Row 2 (scrolling right) */}
+          <div className="relative w-full overflow-hidden flex items-center h-6 mt-0.5">
+            <div className="flex gap-8 whitespace-nowrap animate-marquee-right hover:[animation-play-state:paused] cursor-pointer">
+              {(news.length > 15 ? news.slice(15, 30) : fallbackNews.slice(0, 6)).map((item, idx) => (
+                <a key={`l2-${idx}`} href={item.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-[11px] text-slate-300 hover:text-secondary transition-colors">
+                  <span className="text-secondary font-extrabold uppercase text-[9px] px-1.5 py-0.5 rounded bg-secondary/10 border border-secondary/20 shrink-0">{item.source || 'Fifa'}</span>
+                  <span className="font-semibold">{item.title}</span>
+                  <span className="text-slate-600">|</span>
+                </a>
+              ))}
+              {(news.length > 15 ? news.slice(15, 30) : fallbackNews.slice(0, 6)).map((item, idx) => (
+                <a key={`l2-dup-${idx}`} href={item.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-[11px] text-slate-300 hover:text-secondary transition-colors">
+                  <span className="text-secondary font-extrabold uppercase text-[9px] px-1.5 py-0.5 rounded bg-secondary/10 border border-secondary/20 shrink-0">{item.source || 'Fifa'}</span>
+                  <span className="font-semibold">{item.title}</span>
+                  <span className="text-slate-600">|</span>
+                </a>
+              ))}
+            </div>
+          </div>
+        </footer>
+
       </div>
     </div>
   )
@@ -1897,9 +2309,18 @@ function MatchCard({
     >
       {/* Top Meta info row */}
       <div className="flex justify-between items-center gap-4 mb-4">
-        <span className="text-xs font-semibold text-slate-400">
-          📅 {displayDate || 'Cargando fecha...'}
-        </span>
+        <div className="flex flex-col gap-0.5">
+          <span className="text-xs font-semibold text-slate-400">
+            📅 {displayDate || 'Cargando fecha...'}
+          </span>
+          {(match.stage_group || match.venue) && (
+            <span className="text-[10px] text-slate-500 font-medium">
+              {match.stage_group && <span>{match.stage_group}</span>}
+              {match.stage_group && match.venue && <span> • </span>}
+              {match.venue && <span>📍 {match.venue}</span>}
+            </span>
+          )}
+        </div>
 
         {/* Lock / Status Icon Indicator */}
         <div className="flex items-center gap-2">
