@@ -318,6 +318,16 @@ export default function DashboardPage() {
   const [news, setNews] = useState<any[]>([])
   const [viewMode, setViewMode] = useState<'predictions' | 'schedule' | 'groups' | 'phases' | 'admin'>('predictions')
   const [activeGroupIndex, setActiveGroupIndex] = useState(0)
+  const [activeScheduleDayIndex, setActiveScheduleDayIndex] = useState(0)
+  const [activePredictionsDayIndex, setActivePredictionsDayIndex] = useState(0)
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!dropdownOpen) return
+    const handleClick = () => setDropdownOpen(false)
+    document.addEventListener('click', handleClick)
+    return () => document.removeEventListener('click', handleClick)
+  }, [dropdownOpen])
 
   // Keyboard navigation for groups carousel
   useEffect(() => {
@@ -334,6 +344,62 @@ export default function DashboardPage() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [viewMode])
+
+  // Keyboard navigation for schedule carousel
+  useEffect(() => {
+    if (viewMode !== 'schedule') return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') {
+        setActiveScheduleDayIndex((prev) => (prev === 0 ? prev : prev - 1))
+      } else if (e.key === 'ArrowRight') {
+        setActiveScheduleDayIndex((prev) => prev + 1)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [viewMode])
+
+  // Set schedule day to current tournament day when switching to schedule tab
+  useEffect(() => {
+    if (viewMode !== 'schedule' || matches.length === 0) return
+
+    const dayMap: Record<string, boolean> = {}
+    matches.forEach((m) => {
+      const key = new Date(m.match_date).toISOString().split('T')[0]
+      dayMap[key] = true
+    })
+    const sortedKeys = Object.keys(dayMap).sort()
+    const todayKey = new Date().toISOString().split('T')[0]
+
+    let idx = sortedKeys.findIndex(k => k === todayKey)
+    if (idx === -1) {
+      idx = sortedKeys.findIndex(k => k >= todayKey)
+      if (idx === -1) idx = 0
+    }
+    setActiveScheduleDayIndex(idx)
+  }, [viewMode, matches])
+
+  // Set predictions day to current tournament day when switching to predictions tab
+  useEffect(() => {
+    if (viewMode !== 'predictions' || matches.length === 0) return
+
+    const dayMap: Record<string, boolean> = {}
+    matches.forEach((m) => {
+      const key = new Date(m.match_date).toISOString().split('T')[0]
+      dayMap[key] = true
+    })
+    const sortedKeys = Object.keys(dayMap).sort()
+    const todayKey = new Date().toISOString().split('T')[0]
+
+    let idx = sortedKeys.findIndex(k => k === todayKey)
+    if (idx === -1) {
+      idx = sortedKeys.findIndex(k => k >= todayKey)
+      if (idx === -1) idx = 0
+    }
+    setActivePredictionsDayIndex(idx)
+  }, [viewMode, matches])
 
   // Admin Panel states
   const [adminUsers, setAdminUsers] = useState<{ id: string; email: string; created_at: string; last_sign_in_at: string | null }[]>([])
@@ -665,18 +731,13 @@ export default function DashboardPage() {
 
   const handleDeleteDummiesAndTests = async () => {
     if (!userId) return
-    if (!confirm('¿Estás seguro de que deseas eliminar los usuarios dummy y todos los partidos y predicciones de prueba?')) return
+    if (!confirm('¿Estás seguro de que deseas eliminar los usuarios dummy, reiniciar la emulación del mundial y borrar todos los datos de prueba?')) return
     setDeletingDummies(true)
     setError('')
     try {
-      // 1. Delete all matches scheduled before June 11, 2026 directly via Supabase client.
-      // (This will cascade delete any predictions for those matches)
-      const { error: deleteMatchesErr } = await supabase
-        .from('matches')
-        .delete()
-        .lt('match_date', '2026-06-11T00:00:00Z')
-
-      if (deleteMatchesErr) throw deleteMatchesErr
+      // 1. Reset emulation: set all matches back to pending with no scores and delete predictions
+      const { error: resetErr } = await supabase.rpc('reset_world_cup_emulation')
+      if (resetErr) throw resetErr
 
       // 2. Call the database RPC to delete dummy users and Demo-% matches
       const { data, error: rpcError } = await supabase.rpc('delete_dummies_and_tests')
@@ -684,7 +745,7 @@ export default function DashboardPage() {
       
       // Reload matches and predictions
       await loadMatchesAndPredictions(userId)
-      alert(data || '¡Dummies y pruebas eliminados con éxito!')
+      alert(data || '¡Emulación reiniciada y dummies eliminados con éxito!')
     } catch (err: any) {
       console.error(err)
       setError(err.message || 'Error al eliminar dummies y pruebas.')
@@ -856,87 +917,80 @@ export default function DashboardPage() {
 
           <div className="flex items-center gap-3">
             {username.toLowerCase() === 'admin' && (
-              <>
-                {/* Sync Button */}
+              <div className="relative">
                 <button
                   type="button"
-                  onClick={handleSyncMatches}
-                  disabled={syncing}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-primary hover:text-cyan-300 hover:border-slate-700 transition text-sm font-semibold cursor-pointer disabled:opacity-50"
+                  onClick={(e) => { e.stopPropagation(); setDropdownOpen(!dropdownOpen) }}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-amber-400 hover:text-amber-300 hover:border-slate-700 transition text-sm font-semibold cursor-pointer"
                 >
-                  {syncing ? (
-                    <svg className="animate-spin h-4 w-4 text-primary" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                  ) : (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 7H16"></path>
-                    </svg>
-                  )}
-                   <span>Sincronizar API</span>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                  </svg>
+                  <span className="hidden sm:inline">Admin</span>
+                  <svg className={`w-3 h-3 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7"></path>
+                  </svg>
                 </button>
 
-                {/* World Cup Emulation Button */}
-                <button
-                  type="button"
-                  onClick={handleWorldCupEmulation}
-                  disabled={emulatingWorldCup}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-amber-400 hover:text-amber-300 hover:border-slate-700 transition text-sm font-semibold cursor-pointer disabled:opacity-50"
-                >
-                  {emulatingWorldCup ? (
-                    <svg className="animate-spin h-4 w-4 text-amber-400" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                  ) : (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
-                    </svg>
-                  )}
-                  <span>Emular Mundial</span>
-                </button>
-
-                {/* Seed Dummies Button */}
-                <button
-                  type="button"
-                  onClick={handleSeedDummies}
-                  disabled={seedingDummies}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-primary hover:text-cyan-300 hover:border-slate-700 transition text-sm font-semibold cursor-pointer disabled:opacity-50"
-                >
-                  {seedingDummies ? (
-                    <svg className="animate-spin h-4 w-4 text-primary" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                  ) : (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path>
-                    </svg>
-                  )}
-                  <span>Crear Dummies</span>
-                </button>
-
-                {/* Delete Dummies & Tests Button */}
-                <button
-                  type="button"
-                  onClick={handleDeleteDummiesAndTests}
-                  disabled={deletingDummies}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-rose-450 hover:text-rose-350 hover:border-slate-700 transition text-sm font-semibold cursor-pointer disabled:opacity-50"
-                >
-                  {deletingDummies ? (
-                    <svg className="animate-spin h-4 w-4 text-rose-450" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                  ) : (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                    </svg>
-                  )}
-                  <span>Eliminar Pruebas</span>
-                </button>
-              </>
+                {dropdownOpen && (
+                  <div className="absolute right-0 mt-2 w-56 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl shadow-black/40 z-50 overflow-hidden animate-fadeIn">
+                    <button
+                      type="button"
+                      onClick={() => { handleSyncMatches(); setDropdownOpen(false) }}
+                      disabled={syncing}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-primary hover:bg-slate-800/60 transition disabled:opacity-50 cursor-pointer"
+                    >
+                      {syncing ? (
+                        <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                      ) : (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 7H16"></path></svg>
+                      )}
+                      <span className="font-semibold">Sincronizar API</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { handleWorldCupEmulation(); setDropdownOpen(false) }}
+                      disabled={emulatingWorldCup}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-amber-400 hover:bg-slate-800/60 transition disabled:opacity-50 cursor-pointer"
+                    >
+                      {emulatingWorldCup ? (
+                        <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                      ) : (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                      )}
+                      <span className="font-semibold">Emular Mundial</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { handleSeedDummies(); setDropdownOpen(false) }}
+                      disabled={seedingDummies}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-primary hover:bg-slate-800/60 transition disabled:opacity-50 cursor-pointer"
+                    >
+                      {seedingDummies ? (
+                        <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                      ) : (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path></svg>
+                      )}
+                      <span className="font-semibold">Crear Dummies</span>
+                    </button>
+                    <div className="border-t border-slate-800"></div>
+                    <button
+                      type="button"
+                      onClick={() => { handleDeleteDummiesAndTests(); setDropdownOpen(false) }}
+                      disabled={deletingDummies}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-rose-400 hover:bg-slate-800/60 transition disabled:opacity-50 cursor-pointer"
+                    >
+                      {deletingDummies ? (
+                        <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                      ) : (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                      )}
+                      <span className="font-semibold">Eliminar Pruebas</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
 
             {/* Logout Button */}
@@ -1140,7 +1194,7 @@ export default function DashboardPage() {
 
             {/* Matches Section Header & Filters */}
             <section className="mt-10">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
                 <div className="flex flex-wrap items-center gap-3">
                   <h3 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
                     ⚽ Partidos del Campeonato
@@ -1163,192 +1217,334 @@ export default function DashboardPage() {
                     </button>
                   )}
                 </div>
-                
-                {/* Filter Pill Controls */}
-                <div className="flex rounded-full bg-slate-900/80 p-1 border border-slate-800 text-xs">
-                  {(['all', 'pending', 'finished'] as const).map((type) => (
-                    <button
-                      key={type}
-                      type="button"
-                      onClick={() => setFilter(type)}
-                      className={`rounded-full px-4 py-2 font-bold tracking-wide transition-all cursor-pointer ${
-                        filter === type
-                          ? 'bg-slate-800 text-white shadow'
-                          : 'text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      {type === 'all' ? 'Todos' : type === 'pending' ? 'Pendientes' : 'Finalizados'}
-                    </button>
-                  ))}
-                </div>
               </div>
 
-              {/* Match Cards List */}
-              <div className="mt-6 space-y-5">
-                {filteredMatches.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center p-12 text-center rounded-[32px] bg-slate-900/20 border border-slate-900">
-                    <svg className="w-12 h-12 text-slate-650 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
-                    <p className="text-slate-400 font-semibold">No se encontraron partidos en esta sección.</p>
-                    
-                    {/* Seed demo matches if there are absolutely no matches in DB */}
-                    {matches.length === 0 && (
+              {/* Day-by-day predictions navigation */}
+              {(() => {
+                const WORLD_CUP_START = new Date('2026-06-11T00:00:00')
+                const predDays: { dateKey: string; label: string; dayNum: number; matches: Match[] }[] = []
+                const dayMap: Record<string, Match[]> = {}
+
+                filteredMatches.forEach((m) => {
+                  const d = new Date(m.match_date)
+                  const key = d.toISOString().split('T')[0]
+                  if (!dayMap[key]) dayMap[key] = []
+                  dayMap[key].push(m)
+                })
+
+                Object.keys(dayMap).sort().forEach((key) => {
+                  const d = new Date(key + 'T12:00:00')
+                  const diffMs = d.getTime() - WORLD_CUP_START.getTime()
+                  const dayNum = Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1
+                  const label = d.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' })
+                  predDays.push({ dateKey: key, label: label.charAt(0).toUpperCase() + label.slice(1), dayNum, matches: dayMap[key] })
+                })
+
+                const currentIdx = activePredictionsDayIndex < predDays.length ? activePredictionsDayIndex : 0
+                const activeDay = predDays[currentIdx]
+
+                return (
+                  <>
+                    {/* Filter Pill Controls */}
+                    <div className="flex rounded-full bg-slate-900/80 p-1 border border-slate-800 text-xs w-fit mb-4">
+                      {(['all', 'pending', 'finished'] as const).map((type) => (
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={() => { setFilter(type); setActivePredictionsDayIndex(0) }}
+                          className={`rounded-full px-4 py-2 font-bold tracking-wide transition-all cursor-pointer ${
+                            filter === type ? 'bg-slate-800 text-white shadow' : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          {type === 'all' ? 'Todos' : type === 'pending' ? 'Pendientes' : 'Finalizados'}
+                        </button>
+                      ))}
+                    </div>
+
+                    {predDays.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center p-12 text-center rounded-[32px] bg-slate-900/20 border border-slate-900">
+                        <p className="text-slate-400 font-semibold">No se encontraron partidos en esta sección.</p>
+                        {matches.length === 0 && (
+                          <button type="button" onClick={seedDemoMatches} disabled={seeding} className="mt-6 inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-primary to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-50 text-white font-black text-sm transition uppercase tracking-wider cursor-pointer shadow-lg shadow-primary/10">
+                            {seeding ? 'Sembrando...' : 'Sembrar Partidos Demo'}
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                    <>
+                    {/* Day Slider */}
+                    <div className="mb-5 px-2">
+                      <input
+                        type="range"
+                        min={0}
+                        max={predDays.length - 1}
+                        value={currentIdx}
+                        onChange={(e) => setActivePredictionsDayIndex(Number(e.target.value))}
+                        className="w-full h-2 rounded-full appearance-none cursor-pointer bg-slate-800 accent-primary [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:shadow-primary/30 [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white/20"
+                      />
+                      <div className="flex justify-between mt-1.5 text-[9px] font-bold text-slate-500 uppercase tracking-wider">
+                        <span>Día {predDays[0]?.dayNum > 0 ? predDays[0].dayNum : 1}</span>
+                        <span className="text-primary font-black">
+                          {activeDay?.dayNum > 0 ? `Día ${activeDay.dayNum}` : ''} • {activeDay?.label} • {activeDay?.matches.length} partido{activeDay?.matches.length !== 1 ? 's' : ''}
+                        </span>
+                        <span>Día {predDays[predDays.length - 1]?.dayNum > 0 ? predDays[predDays.length - 1].dayNum : predDays.length}</span>
+                      </div>
+                    </div>
+
+                    {/* Match Cards for selected day */}
+                    <div className="space-y-5">
+                      {activeDay?.matches.map((match) => (
+                        <MatchCard
+                          key={match.id}
+                          userId={userId!}
+                          match={match}
+                          prediction={predictions[match.id]}
+                          isAdmin={username.toLowerCase() === 'admin'}
+                          adminMode={adminMode}
+                          onMatchUpdate={handleMatchUpdate}
+                          onSave={async (savedPrediction) => {
+                            setPredictions((current) => ({
+                              ...current,
+                              [match.id]: savedPrediction,
+                            }))
+                          }}
+                        />
+                      ))}
+                    </div>
+
+                    {/* Mobile day navigation */}
+                    <div className="flex justify-between items-center mt-6 px-2">
                       <button
-                        type="button"
-                        onClick={seedDemoMatches}
-                        disabled={seeding}
-                        className="mt-6 inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-primary to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black text-sm transition uppercase tracking-wider cursor-pointer shadow-lg shadow-primary/10"
+                        onClick={() => setActivePredictionsDayIndex(prev => (prev === 0 ? predDays.length - 1 : prev - 1))}
+                        className="px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs font-bold text-slate-300 hover:text-white flex items-center gap-2 cursor-pointer"
                       >
-                        {seeding ? 'Sembrando...' : 'Sembrar Partidos Demo'}
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
+                        Anterior
                       </button>
+                      <span className="text-xs text-slate-450 font-semibold uppercase tracking-wider">
+                        {currentIdx + 1} / {predDays.length}
+                      </span>
+                      <button
+                        onClick={() => setActivePredictionsDayIndex(prev => (prev === predDays.length - 1 ? 0 : prev + 1))}
+                        className="px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs font-bold text-slate-300 hover:text-white flex items-center gap-2 cursor-pointer"
+                      >
+                        Siguiente
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
+                      </button>
+                    </div>
+                    </>
                     )}
-                  </div>
-                ) : (
-                  filteredMatches.map((match) => (
-                    <MatchCard
-                      key={match.id}
-                      userId={userId!}
-                      match={match}
-                      prediction={predictions[match.id]}
-                      isAdmin={username.toLowerCase() === 'admin'}
-                      adminMode={adminMode}
-                      onMatchUpdate={handleMatchUpdate}
-                      onSave={async (savedPrediction) => {
-                        setPredictions((current) => ({
-                          ...current,
-                          [match.id]: savedPrediction,
-                        }))
-                      }}
-                    />
-                  ))
-                )}
-              </div>
+                  </>
+                )
+              })()}
             </section>
           </>
         )}
 
-        {viewMode === 'schedule' && (
-          /* World Cup 2026 Calendario (Schedule) View Layout */
-          <section className="mt-8 animate-fadeIn animate-duration-300">
-            <div className="mb-6 flex justify-between items-center gap-4">
-              <div>
+        {viewMode === 'schedule' && (() => {
+          // Group matches by date key (YYYY-MM-DD)
+          const WORLD_CUP_START = new Date('2026-06-11T00:00:00')
+          const scheduleDays: { dateKey: string; label: string; dayNum: number; matches: Match[] }[] = []
+          const dayMap: Record<string, Match[]> = {}
+
+          matches.forEach((m) => {
+            const d = new Date(m.match_date)
+            const key = d.toISOString().split('T')[0]
+            if (!dayMap[key]) dayMap[key] = []
+            dayMap[key].push(m)
+          })
+
+          Object.keys(dayMap).sort().forEach((key) => {
+            const d = new Date(key + 'T12:00:00')
+            const diffMs = d.getTime() - WORLD_CUP_START.getTime()
+            const dayNum = Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1
+            const label = d.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' })
+            scheduleDays.push({ dateKey: key, label: label.charAt(0).toUpperCase() + label.slice(1), dayNum, matches: dayMap[key] })
+          })
+
+          // Find today's tournament day index (default to day closest to today or day 1)
+          const todayKey = new Date().toISOString().split('T')[0]
+          let defaultIdx = scheduleDays.findIndex(d => d.dateKey === todayKey)
+          if (defaultIdx === -1) {
+            // Find closest future day or fallback to 0
+            defaultIdx = scheduleDays.findIndex(d => d.dateKey >= todayKey)
+            if (defaultIdx === -1) defaultIdx = 0
+          }
+
+          // Use state but initialize once
+          const currentDayIdx = activeScheduleDayIndex < scheduleDays.length ? activeScheduleDayIndex : 0
+          const activeDay = scheduleDays[currentDayIdx]
+
+          return (
+            <section className="mt-8 animate-fadeIn">
+              <div className="mb-6">
                 <h3 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
                   📅 Calendario de Partidos
                 </h3>
                 <p className="text-sm text-slate-400 mt-1">
-                  Consulta las fechas y horarios de todos los partidos del campeonato mundial.
+                  Navega día por día los partidos del mundial. Usa las flechas o las teclas <kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-xs font-mono">←</kbd> y <kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-xs font-mono">→</kbd>.
                 </p>
               </div>
-            </div>
 
-            {matches.length === 0 ? (
-              <div className="flex flex-col items-center justify-center p-12 text-center rounded-[32px] bg-slate-900/20 border border-slate-900">
-                <svg className="w-12 h-12 text-slate-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                </svg>
-                <p className="text-slate-400 font-semibold">No se encontraron partidos en el calendario.</p>
-                <button
-                  type="button"
-                  onClick={seedDemoMatches}
-                  disabled={seeding}
-                  className="mt-6 inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-gradient-to-r from-primary to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black text-sm transition uppercase tracking-wider cursor-pointer shadow-lg shadow-primary/10"
-                >
-                  {seeding ? 'Sembrando...' : 'Sembrar Partidos Demo'}
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-8">
-                {Object.entries(
-                  matches.reduce<Record<string, Match[]>>((groups, match) => {
-                    const date = new Date(match.match_date)
-                    const dateKey = date.toLocaleDateString('es-ES', {
-                      weekday: 'long',
-                      day: 'numeric',
-                      month: 'long',
-                    })
-                    const capitalizedKey = dateKey.charAt(0).toUpperCase() + dateKey.slice(1)
-                    if (!groups[capitalizedKey]) {
-                      groups[capitalizedKey] = []
-                    }
-                    groups[capitalizedKey].push(match)
-                    return groups
-                  }, {})
-                ).map(([dateString, dayMatches]) => (
-                  <div key={dateString} className="space-y-3">
-                    {/* Date Header Accent */}
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs font-black uppercase tracking-wider text-primary">
-                        {dateString}
-                      </span>
-                      <div className="h-[1px] flex-1 bg-slate-900"></div>
-                    </div>
+              {scheduleDays.length === 0 ? (
+                <div className="flex flex-col items-center justify-center p-12 text-center rounded-[32px] bg-slate-900/20 border border-slate-900">
+                  <p className="text-slate-400 font-semibold">No se encontraron partidos en el calendario.</p>
+                </div>
+              ) : (
+                <>
+                  {/* Day Selector Row */}
+                  <div className="flex overflow-x-auto gap-2 mb-4 bg-slate-900/40 p-2 rounded-2xl border border-slate-800/40 [&::-webkit-scrollbar]:hidden [scrollbar-width:none] snap-x px-3 py-2.5 w-full">
+                    {scheduleDays.map((day, idx) => {
+                      const isActive = idx === currentDayIdx
+                      return (
+                        <button
+                          key={day.dateKey}
+                          onClick={() => setActiveScheduleDayIndex(idx)}
+                          className={`flex flex-col items-center justify-center px-3 py-2 rounded-xl font-bold text-xs transition-all duration-300 cursor-pointer shrink-0 snap-center min-w-[60px] ${
+                            isActive
+                              ? 'bg-primary text-white shadow-lg shadow-primary/30 scale-105 border border-primary/20'
+                              : 'bg-slate-950 text-slate-450 border border-slate-900 hover:bg-slate-800 hover:text-white'
+                          }`}
+                        >
+                          <span className="text-[9px] uppercase tracking-wider font-black">{day.dayNum > 0 ? `Día ${day.dayNum}` : day.dateKey.slice(5)}</span>
+                          <span className="text-[10px] mt-0.5 font-semibold opacity-80">{day.label}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
 
-                    {/* Day Matches List */}
-                    <div className="grid grid-cols-1 gap-3">
-                      {dayMatches.map((match) => {
-                        const mDate = new Date(match.match_date)
-                        const mTime = mDate.toLocaleTimeString('es-ES', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })
-                        const isFinished = match.status === 'finished'
-
-                        return (
-                          <div
-                            key={match.id}
-                            className="bg-slate-900/30 backdrop-blur-md border border-slate-900 rounded-2xl p-4 flex items-center justify-between gap-4"
-                          >
-                            {/* Kickoff time */}
-                            <div className="flex items-center gap-3 shrink-0">
-                              <span className="w-2 h-2 rounded-full bg-primary/60"></span>
-                              <div className="flex flex-col">
-                                <span className="text-sm font-black text-slate-300 font-mono">
-                                  {mTime}
-                                </span>
-                                {(match.stage_group || match.venue) && (
-                                  <span className="text-[9px] text-slate-500 font-semibold max-w-[120px] truncate">
-                                    {match.stage_group || match.venue}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Match Matchup */}
-                            <div className="flex-1 flex items-center justify-center gap-2 sm:gap-4 px-2">
-                              <span className="text-xs sm:text-sm font-extrabold text-slate-200 text-right flex-1 truncate">
-                                {match.home_team}
-                              </span>
-                              <span className="text-[10px] font-bold text-slate-650 uppercase tracking-widest shrink-0">
-                                vs
-                              </span>
-                              <span className="text-xs sm:text-sm font-extrabold text-slate-200 text-left flex-1 truncate">
-                                {match.away_team}
-                              </span>
-                            </div>
-
-                            {/* Score or Status Badge */}
-                            <div className="shrink-0 min-w-[70px] text-right">
-                              {isFinished ? (
-                                <span className="inline-flex items-center justify-center font-mono font-black text-sm bg-slate-950/60 text-primary px-2.5 py-1 rounded-lg border border-slate-900">
-                                  {match.home_score} - {match.away_score}
-                                </span>
-                              ) : (
-                                <span className="inline-block text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded bg-slate-900 border border-slate-850 text-slate-500">
-                                  Pendiente
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        )
-                      })}
+                  {/* Day Slider */}
+                  <div className="mb-6 px-2">
+                    <input
+                      type="range"
+                      min={0}
+                      max={scheduleDays.length - 1}
+                      value={currentDayIdx}
+                      onChange={(e) => setActiveScheduleDayIndex(Number(e.target.value))}
+                      className="w-full h-2 rounded-full appearance-none cursor-pointer bg-slate-800 accent-primary [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:shadow-primary/30 [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white/20"
+                    />
+                    <div className="flex justify-between mt-1.5 text-[9px] font-bold text-slate-500 uppercase tracking-wider">
+                      <span>Día 1</span>
+                      <span className="text-primary font-black">Día {scheduleDays[currentDayIdx]?.dayNum > 0 ? scheduleDays[currentDayIdx].dayNum : currentDayIdx + 1}</span>
+                      <span>Día {scheduleDays[scheduleDays.length - 1]?.dayNum > 0 ? scheduleDays[scheduleDays.length - 1].dayNum : scheduleDays.length}</span>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </section>
-        )}
+
+                  {/* Navigation + Card */}
+                  <div className="relative flex items-center justify-between gap-4 max-w-4xl mx-auto">
+                    {/* Left Arrow */}
+                    <button
+                      onClick={() => setActiveScheduleDayIndex(prev => (prev === 0 ? scheduleDays.length - 1 : prev - 1))}
+                      className="w-12 h-12 rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-800 flex items-center justify-center text-slate-350 hover:text-white transition duration-300 shadow-md cursor-pointer shrink-0 hidden md:flex"
+                      aria-label="Día anterior"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-5 h-5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                      </svg>
+                    </button>
+
+                    {/* Day Card */}
+                    <div className="w-full bg-slate-900/60 border border-slate-800/80 rounded-3xl backdrop-blur-md overflow-hidden p-6 md:p-8">
+                      {activeDay && (
+                        <>
+                          <div className="flex items-center justify-between pb-4 border-b border-slate-800/60 mb-5">
+                            <span className="font-black text-lg tracking-wider text-slate-100 flex items-center gap-2">
+                              <span className="text-primary">📅</span> {activeDay.label}
+                            </span>
+                            <span className="text-[10px] font-bold px-3 py-1 rounded-full bg-slate-950 text-slate-400 border border-slate-800 uppercase tracking-widest">
+                              {activeDay.dayNum > 0 ? `Día ${activeDay.dayNum}` : activeDay.dateKey} • {activeDay.matches.length} partido{activeDay.matches.length !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+
+                          <div className="space-y-3">
+                            {activeDay.matches.map((match) => {
+                              const mDate = new Date(match.match_date)
+                              const mTime = mDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+                              const isFinished = match.status === 'finished'
+
+                              return (
+                                <div
+                                  key={match.id}
+                                  className="bg-slate-950/40 border border-slate-900 rounded-2xl p-4 flex items-center justify-between gap-4"
+                                >
+                                  <div className="flex items-center gap-3 shrink-0">
+                                    <span className="w-2 h-2 rounded-full bg-primary/60"></span>
+                                    <div className="flex flex-col">
+                                      <span className="text-sm font-black text-slate-300 font-mono">{mTime}</span>
+                                      {(match.stage_group || match.venue) && (
+                                        <span className="text-[9px] text-slate-500 font-semibold max-w-[120px] truncate">
+                                          {match.stage_group || match.venue}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div className="flex-1 flex items-center justify-center gap-2 sm:gap-4 px-2">
+                                    <span className="text-xs sm:text-sm font-extrabold text-slate-200 text-right flex-1 truncate">{match.home_team}</span>
+                                    <span className="text-[10px] font-bold text-slate-650 uppercase tracking-widest shrink-0">vs</span>
+                                    <span className="text-xs sm:text-sm font-extrabold text-slate-200 text-left flex-1 truncate">{match.away_team}</span>
+                                  </div>
+
+                                  <div className="shrink-0 min-w-[70px] text-right">
+                                    {isFinished ? (
+                                      <span className="inline-flex items-center justify-center font-mono font-black text-sm bg-slate-950/60 text-primary px-2.5 py-1 rounded-lg border border-slate-900">
+                                        {match.home_score} - {match.away_score}
+                                      </span>
+                                    ) : (
+                                      <span className="inline-block text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded bg-slate-900 border border-slate-850 text-slate-500">
+                                        Pendiente
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Right Arrow */}
+                    <button
+                      onClick={() => setActiveScheduleDayIndex(prev => (prev === scheduleDays.length - 1 ? 0 : prev + 1))}
+                      className="w-12 h-12 rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-800 flex items-center justify-center text-slate-350 hover:text-white transition duration-300 shadow-md cursor-pointer shrink-0 hidden md:flex"
+                      aria-label="Día siguiente"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-5 h-5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  {/* Mobile Controls */}
+                  <div className="flex justify-between items-center mt-6 md:hidden px-4">
+                    <button
+                      onClick={() => setActiveScheduleDayIndex(prev => (prev === 0 ? scheduleDays.length - 1 : prev - 1))}
+                      className="px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs font-bold text-slate-300 hover:text-white flex items-center gap-2 cursor-pointer"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-4 h-4">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                      </svg>
+                      Anterior
+                    </button>
+                    <span className="text-xs text-slate-450 font-semibold uppercase tracking-wider">
+                      {currentDayIdx + 1} / {scheduleDays.length}
+                    </span>
+                    <button
+                      onClick={() => setActiveScheduleDayIndex(prev => (prev === scheduleDays.length - 1 ? 0 : prev + 1))}
+                      className="px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs font-bold text-slate-300 hover:text-white flex items-center gap-2 cursor-pointer"
+                    >
+                      Siguiente
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-4 h-4">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                      </svg>
+                    </button>
+                  </div>
+                </>
+              )}
+            </section>
+          )
+        })()}
 
         {viewMode === 'groups' && (() => {
           const activeGroup = groupsData[activeGroupIndex]
