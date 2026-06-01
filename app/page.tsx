@@ -1546,9 +1546,9 @@ export default function DashboardPage() {
                                     </div>
 
                                     <div className="flex-1 flex items-center justify-center gap-2 sm:gap-4 px-2">
-                                      <span className="text-xs sm:text-sm font-extrabold text-slate-200 text-right flex-1 truncate">{match.home_team}</span>
+                                      <span className="text-xs sm:text-sm font-extrabold text-slate-200 text-right flex-1 break-words leading-tight">{match.home_team}</span>
                                       <span className="text-[10px] font-bold text-slate-650 uppercase tracking-widest shrink-0">vs</span>
-                                      <span className="text-xs sm:text-sm font-extrabold text-slate-200 text-left flex-1 truncate">{match.away_team}</span>
+                                      <span className="text-xs sm:text-sm font-extrabold text-slate-200 text-left flex-1 break-words leading-tight">{match.away_team}</span>
                                     </div>
                                   </div>
 
