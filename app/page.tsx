@@ -1203,6 +1203,11 @@ export default function DashboardPage() {
                     <span className="text-slate-500 text-[10px] block mt-0.5">Ej: Predijiste 1-0, quedó 1-2.</span>
                   </div>
                 </div>
+                <div className="mt-3 p-3 bg-orange-500/5 rounded-xl border border-orange-500/20">
+                  <span className="font-extrabold text-orange-400 block text-sm">🔥 Racha On Fire — Multiplicador x1.5</span>
+                  <span className="text-slate-400 mt-1 block text-xs">Si aciertas 3 o más partidos seguidos (ganador o resultado exacto), tus puntos se multiplican x1.5 mientras mantengas la racha.</span>
+                  <span className="text-slate-500 text-[10px] block mt-1">Ej: Con racha de 3+, un resultado exacto da 8 pts en vez de 5, un ganador correcto da 5 pts en vez de 3.</span>
+                </div>
               </details>
             </section>
 
