@@ -1489,27 +1489,29 @@ export default function DashboardPage() {
                               return (
                                 <div
                                   key={match.id}
-                                  className="bg-slate-950/40 border border-slate-900 rounded-2xl p-4 flex items-center justify-between gap-4"
+                                  className="bg-slate-950/40 border border-slate-900 rounded-2xl p-4 flex flex-col gap-2"
                                 >
-                                  <div className="flex items-center gap-3 shrink-0">
-                                    <span className="w-2 h-2 rounded-full bg-primary/60"></span>
-                                    <div className="flex flex-col">
-                                      <span className="text-sm font-black text-slate-300 font-mono">{mTime}</span>
-                                      {(match.stage_group || match.venue) && (
-                                        <span className="text-[9px] text-slate-500 font-semibold max-w-[120px] truncate">
-                                          {match.stage_group || match.venue}
-                                        </span>
-                                      )}
+                                  <div className="flex items-center justify-between gap-4">
+                                    <div className="flex items-center gap-3 shrink-0">
+                                      <span className="w-2 h-2 rounded-full bg-primary/60"></span>
+                                      <div className="flex flex-col">
+                                        <span className="text-sm font-black text-slate-300 font-mono">{mTime}</span>
+                                        {(match.stage_group || match.venue) && (
+                                          <span className="text-[9px] text-slate-500 font-semibold max-w-[120px] truncate">
+                                            {match.stage_group || match.venue}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    <div className="flex-1 flex items-center justify-center gap-2 sm:gap-4 px-2">
+                                      <span className="text-xs sm:text-sm font-extrabold text-slate-200 text-right flex-1 truncate">{match.home_team}</span>
+                                      <span className="text-[10px] font-bold text-slate-650 uppercase tracking-widest shrink-0">vs</span>
+                                      <span className="text-xs sm:text-sm font-extrabold text-slate-200 text-left flex-1 truncate">{match.away_team}</span>
                                     </div>
                                   </div>
 
-                                  <div className="flex-1 flex items-center justify-center gap-2 sm:gap-4 px-2">
-                                    <span className="text-xs sm:text-sm font-extrabold text-slate-200 text-right flex-1 truncate">{match.home_team}</span>
-                                    <span className="text-[10px] font-bold text-slate-650 uppercase tracking-widest shrink-0">vs</span>
-                                    <span className="text-xs sm:text-sm font-extrabold text-slate-200 text-left flex-1 truncate">{match.away_team}</span>
-                                  </div>
-
-                                  <div className="shrink-0 min-w-[70px] text-right">
+                                  <div className="text-center">
                                     {isFinished ? (
                                       <span className="inline-flex items-center justify-center font-mono font-black text-sm bg-slate-950/60 text-primary px-2.5 py-1 rounded-lg border border-slate-900">
                                         {match.home_score} - {match.away_score}
@@ -1833,6 +1835,53 @@ export default function DashboardPage() {
                 </table>
               </div>
             </div>
+
+            {/* Resultados parciales */}
+            {phaseLeaderboard.length > 0 && (
+              <div className="mt-6 bg-slate-900/40 border border-slate-800 rounded-2xl p-5">
+                <h4 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+                  🏅 Resultados Parciales
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  {[
+                    { label: 'Fase 1 (Grupos)', key: 'fase1' as const, max: maxes.f1 },
+                    { label: 'Fase 2 (16avos)', key: 'fase2' as const, max: maxes.f2 },
+                    { label: 'Fase 3 (Octavos)', key: 'fase3' as const, max: maxes.f3 },
+                    { label: 'Fase 4 (Cuartos)', key: 'fase4' as const, max: maxes.f4 },
+                    { label: 'Fase 5 (Semis)', key: 'fase5' as const, max: maxes.f5 },
+                    { label: 'Fase 6 (Finales)', key: 'fase6' as const, max: maxes.f6 },
+                  ].map((phase) => {
+                    const leader = phaseLeaderboard.find(u => Number(u[phase.key]) === phase.max && phase.max > 0)
+                    return (
+                      <div key={phase.key} className="bg-slate-950/60 border border-slate-900 rounded-xl p-3">
+                        <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider block">{phase.label}</span>
+                        {leader ? (
+                          <span className="text-sm font-extrabold text-amber-400 flex items-center gap-1 mt-1">
+                            🥇 {leader.username} <span className="text-xs text-slate-400 font-mono">({phase.max} pts)</span>
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-600 mt-1 block">Sin datos aún</span>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Líder general */}
+                <div className="mt-4 pt-4 border-t border-slate-800">
+                  <div className="bg-gradient-to-r from-amber-500/10 to-transparent border border-amber-500/20 rounded-xl p-4 flex items-center gap-3">
+                    <span className="text-2xl">🏆</span>
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Líder General del Torneo</span>
+                      <span className="text-base font-black text-amber-400">
+                        {phaseLeaderboard[0]?.username || '—'}
+                        <span className="text-sm text-slate-300 font-mono ml-2">{phaseLeaderboard[0]?.total_points || 0} pts</span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </section>
         )}
 
