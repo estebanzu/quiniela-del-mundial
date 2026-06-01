@@ -13,8 +13,9 @@ function usernameToEmail(username: string) {
 
 export default function LoginPage() {
   const router = useRouter()
-  const [tab, setTab] = useState<'login' | 'register'>('login')
+  const [tab, setTab] = useState<'login' | 'register' | 'forgot'>('login')
   const [username, setUsername] = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -64,6 +65,48 @@ export default function LoginPage() {
     }
   }, [])
 
+  const handleForgotPassword = async (event: React.FormEvent) => {
+    event.preventDefault()
+    setLoading(true)
+    setMessage('')
+    setError('')
+
+    if (!username) {
+      setError('Ingresa tu nombre de usuario.')
+      setLoading(false)
+      return
+    }
+
+    try {
+      // Look up the user's real email via admin RPC
+      const { data, error: rpcErr } = await supabase.rpc('get_user_recovery_email', {
+        target_username: username.trim().toLowerCase()
+      })
+
+      if (rpcErr) throw rpcErr
+
+      if (!data) {
+        setError('No se encontró un correo asociado a ese usuario. Contacta al administrador.')
+        setLoading(false)
+        return
+      }
+
+      // Send password reset to the real email
+      const { error: resetErr } = await supabase.auth.resetPasswordForEmail(data, {
+        redirectTo: `${window.location.origin}/login`
+      })
+
+      if (resetErr) throw resetErr
+
+      setMessage(`Se envió un enlace de recuperación al correo asociado a "${username}". Revisa tu bandeja de entrada.`)
+    } catch (err: any) {
+      console.error(err)
+      setError(err.message || 'Error al intentar recuperar la contraseña. Contacta al administrador.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
     setLoading(true)
@@ -96,12 +139,21 @@ export default function LoginPage() {
       return
     }
 
+    if (tab === 'register' && !email) {
+      setError('Ingresa tu correo electrónico para poder recuperar tu cuenta.')
+      setLoading(false)
+      return
+    }
+
     try {
       if (tab === 'register') {
         // Sign up with username as email
         const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-          email,
+          email: usernameToEmail(username),
           password,
+          options: {
+            data: { recovery_email: email.trim().toLowerCase() }
+          }
         })
 
         if (signUpError) throw signUpError
@@ -351,7 +403,7 @@ export default function LoginPage() {
                 setError('')
                 setMessage('')
               }}
-              className={`flex-1 rounded-full py-2 text-xs font-bold uppercase tracking-wider transition-all duration-300 ${tab === mode
+              className={`flex-1 rounded-full py-2 text-xs font-bold uppercase tracking-wider transition-all duration-300 ${tab === mode || (tab === 'forgot' && mode === 'login')
                 ? 'bg-gradient-to-r from-primary to-secondary text-white shadow-md font-extrabold transform scale-[1.02]'
                 : 'text-slate-400 hover:text-white'
                 }`}
@@ -361,7 +413,47 @@ export default function LoginPage() {
           ))}
         </div>
 
-        {/* Custom Auth Form */}
+        {/* Forgot Password Form */}
+        {tab === 'forgot' ? (
+          <form onSubmit={handleForgotPassword} className="space-y-4">
+            <p className="text-xs text-slate-400 mb-2">Ingresa tu nombre de usuario y te enviaremos un enlace de recuperación al correo que registraste.</p>
+            <div>
+              <label htmlFor="forgot-username" className="block text-[10px] font-black uppercase tracking-wider text-slate-400">
+                Usuario
+              </label>
+              <div className="relative mt-1.5">
+                <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-500">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                  </svg>
+                </span>
+                <input
+                  id="forgot-username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="w-full bg-slate-950/65 border border-slate-800/60 rounded-xl pl-10 pr-4 py-3 text-white placeholder-slate-650 outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition duration-200 text-sm"
+                  placeholder="Ej: messi10"
+                  required
+                />
+              </div>
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full mt-4 bg-gradient-to-r from-primary to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black py-3.5 px-4 rounded-xl transition duration-300 transform active:scale-[0.98] disabled:opacity-50 shadow-lg shadow-primary/10 text-xs uppercase tracking-wider cursor-pointer"
+            >
+              {loading ? 'Enviando...' : 'Enviar Enlace de Recuperación'}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setTab('login'); setError(''); setMessage('') }}
+              className="w-full text-xs text-slate-400 hover:text-white transition mt-2 cursor-pointer"
+            >
+              ← Volver al inicio de sesión
+            </button>
+          </form>
+        ) : (
+        /* Custom Auth Form */
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="username" className="block text-[10px] font-black uppercase tracking-wider text-slate-400">
@@ -385,9 +477,32 @@ export default function LoginPage() {
             </div>
           </div>
 
+          {tab === 'register' && (
+            <div>
+              <label htmlFor="email" className="block text-[10px] font-black uppercase tracking-wider text-slate-400">
+                Correo Electrónico (para recuperar cuenta)
+              </label>
+              <div className="relative mt-1.5">
+                <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-500">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                  </svg>
+                </span>
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full bg-slate-950/65 border border-slate-800/60 rounded-xl pl-10 pr-4 py-3 text-white placeholder-slate-650 outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition duration-200 text-sm"
+                  placeholder="tucorreo@gmail.com"
+                  required
+                />
+              </div>
+            </div>
+          )}
+
           <div>
             <label htmlFor="password" className="block text-[10px] font-black uppercase tracking-wider text-slate-400">
-              Contraseña
             </label>
             <div className="relative mt-1.5">
               <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-500">
@@ -452,7 +567,18 @@ export default function LoginPage() {
               'Crear Cuenta'
             )}
           </button>
+
+          {tab === 'login' && (
+            <button
+              type="button"
+              onClick={() => { setTab('forgot'); setError(''); setMessage('') }}
+              className="w-full text-xs text-slate-400 hover:text-primary transition mt-2 cursor-pointer"
+            >
+              ¿Olvidaste tu contraseña?
+            </button>
+          )}
         </form>
+        )}
 
         {/* Feedback Messages */}
         {message && (

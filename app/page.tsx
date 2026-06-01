@@ -3151,7 +3151,28 @@ function MatchCard({
         </div>
 
         {/* Action Button */}
-        <div className="w-full">
+        <div className="w-full flex gap-2">
+          {!adminMode && !isLocked && (
+            <button
+              type="button"
+              onClick={() => {
+                const isDraw = Math.random() < 0.35
+                if (isDraw) {
+                  const g = Math.floor(Math.random() * 4)
+                  setHomeScore(g.toString())
+                  setAwayScore(g.toString())
+                } else {
+                  setHomeScore(Math.floor(Math.random() * 4).toString())
+                  setAwayScore(Math.floor(Math.random() * 4).toString())
+                }
+              }}
+              className="shrink-0 w-12 h-12 flex items-center justify-center rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 hover:bg-slate-800 text-lg transition active:scale-90 cursor-pointer"
+              title="Resultado aleatorio"
+            >
+              🎲
+            </button>
+          )}
+          <div className="flex-1">
           {adminMode ? (
             <button
               type="submit"
@@ -3189,6 +3210,7 @@ function MatchCard({
               🔒 Bloqueado
             </div>
           )}
+          </div>
         </div>
       </div>
 
