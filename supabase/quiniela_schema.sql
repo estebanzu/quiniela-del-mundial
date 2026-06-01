@@ -688,6 +688,29 @@ begin
 end;
 $$;
 
+-- 6. Function to get recovery email for password reset
+create or replace function public.get_user_recovery_email(target_username text)
+returns text
+language plpgsql
+security definer
+as $$
+declare
+  recovery_email text;
+begin
+  select u.raw_user_meta_data ->> 'recovery_email'
+  into recovery_email
+  from auth.users u
+  where u.email = target_username || '@quiniela.local';
+
+  -- Only return if it's a valid external email
+  if recovery_email is null or recovery_email = '' then
+    return null;
+  end if;
+
+  return recovery_email;
+end;
+$$;
+
 
 -- ==========================================
 -- WORLD CUP EMULATION & PHASE LEADERBOARD

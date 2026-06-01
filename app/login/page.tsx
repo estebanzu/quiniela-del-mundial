@@ -85,8 +85,8 @@ export default function LoginPage() {
 
       if (rpcErr) throw rpcErr
 
-      if (!data) {
-        setError('No se encontró un correo asociado a ese usuario. Contacta al administrador.')
+      if (!data || data.endsWith('@quiniela.local') || !data.includes('@')) {
+        setError('No se encontró un correo de recuperación asociado a ese usuario. Contacta al administrador para restablecer tu contraseña.')
         setLoading(false)
         return
       }

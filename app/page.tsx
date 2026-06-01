@@ -412,6 +412,10 @@ export default function DashboardPage() {
   const [hoveredBar, setHoveredBar] = useState<number | null>(null)
   const [dismissedMatchId, setDismissedMatchId] = useState<number | null>(null)
   const [h2hRival, setH2hRival] = useState('')
+  const [changePwCurrent, setChangePwCurrent] = useState('')
+  const [changePwNew, setChangePwNew] = useState('')
+  const [changePwMsg, setChangePwMsg] = useState<{ text: string; type: 'success' | 'error' | '' }>({ text: '', type: '' })
+  const [changingPw, setChangingPw] = useState(false)
 
   // Password reset modal states
   const [resetUser, setResetUser] = useState<{ id: string; email: string } | null>(null)
@@ -421,6 +425,8 @@ export default function DashboardPage() {
   // Delete user modal states
   const [deleteUser, setDeleteUser] = useState<{ id: string; email: string } | null>(null)
   const [deletingUser, setDeletingUser] = useState(false)
+  const [sendingDailyEmail, setSendingDailyEmail] = useState(false)
+  const [dailyEmailDate, setDailyEmailDate] = useState(new Date().toISOString().split('T')[0])
 
   const logUserLogin = async (uid: string, email: string) => {
     try {
@@ -2266,6 +2272,78 @@ export default function DashboardPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Change Password */}
+              <div className="glass-card p-6 mt-6">
+                <h4 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+                  🔑 Cambiar Contraseña
+                </h4>
+                <form onSubmit={async (e) => {
+                  e.preventDefault()
+                  setChangePwMsg({ text: '', type: '' })
+                  if (changePwNew.length < 6) {
+                    setChangePwMsg({ text: 'La nueva contraseña debe tener al menos 6 caracteres.', type: 'error' })
+                    return
+                  }
+                  setChangingPw(true)
+                  try {
+                    const { error: signInErr } = await supabase.auth.signInWithPassword({
+                      email: userEmail,
+                      password: changePwCurrent,
+                    })
+                    if (signInErr) {
+                      setChangePwMsg({ text: 'Contraseña actual incorrecta.', type: 'error' })
+                      setChangingPw(false)
+                      return
+                    }
+                    const { error: updateErr } = await supabase.auth.updateUser({ password: changePwNew })
+                    if (updateErr) throw updateErr
+                    setChangePwMsg({ text: '¡Contraseña actualizada con éxito!', type: 'success' })
+                    setChangePwCurrent('')
+                    setChangePwNew('')
+                  } catch (err: any) {
+                    setChangePwMsg({ text: err.message || 'Error al cambiar la contraseña.', type: 'error' })
+                  } finally {
+                    setChangingPw(false)
+                  }
+                }} className="space-y-3">
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-1">Contraseña actual</label>
+                    <input
+                      type="password"
+                      value={changePwCurrent}
+                      onChange={(e) => setChangePwCurrent(e.target.value)}
+                      required
+                      className="w-full sm:w-72 px-3.5 py-2.5 text-xs rounded-xl bg-slate-950 border border-slate-800 text-white outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition"
+                      placeholder="••••••••"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-1">Nueva contraseña</label>
+                    <input
+                      type="password"
+                      value={changePwNew}
+                      onChange={(e) => setChangePwNew(e.target.value)}
+                      required
+                      minLength={6}
+                      className="w-full sm:w-72 px-3.5 py-2.5 text-xs rounded-xl bg-slate-950 border border-slate-800 text-white outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition"
+                      placeholder="Mínimo 6 caracteres"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={changingPw}
+                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-primary to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black text-xs uppercase tracking-wider transition cursor-pointer disabled:opacity-50"
+                  >
+                    {changingPw ? 'Cambiando...' : 'Cambiar Contraseña'}
+                  </button>
+                  {changePwMsg.text && (
+                    <p className={`text-xs font-bold ${changePwMsg.type === 'success' ? 'text-primary' : 'text-rose-400'}`}>
+                      {changePwMsg.text}
+                    </p>
+                  )}
+                </form>
+              </div>
             </section>
           )
         })()}
@@ -2519,6 +2597,59 @@ export default function DashboardPage() {
                     </svg>
                   )
                 })()}
+              </div>
+            </div>
+
+            {/* Send Daily Results Email */}
+            <div className="glass-card p-6 mt-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    📧 Enviar Resultados del Día
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Envía un correo con los resultados del día a todos los usuarios con email registrado.
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="date"
+                    value={dailyEmailDate}
+                    onChange={(e) => setDailyEmailDate(e.target.value)}
+                    className="px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs font-mono outline-none focus:border-primary transition cursor-pointer"
+                  />
+                  <button
+                    type="button"
+                    disabled={sendingDailyEmail}
+                    onClick={async () => {
+                      setSendingDailyEmail(true)
+                      try {
+                        const { data: sessionData } = await supabase.auth.getSession()
+                        const token = sessionData.session?.access_token
+                        const res = await fetch('/api/send-daily-results', {
+                          method: 'POST',
+                          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ date: dailyEmailDate })
+                        })
+                        const data = await res.json()
+                        if (!res.ok) throw new Error(data.error)
+                        alert(`¡Correo enviado a ${data.sent_to} usuario${data.sent_to !== 1 ? 's' : ''}!`)
+                      } catch (err: any) {
+                        alert(err.message || 'Error al enviar correos.')
+                      } finally {
+                        setSendingDailyEmail(false)
+                      }
+                    }}
+                    className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-primary to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black text-xs uppercase tracking-wider transition cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {sendingDailyEmail ? (
+                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    ) : (
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                    )}
+                    {sendingDailyEmail ? 'Enviando...' : 'Enviar'}
+                  </button>
+                </div>
               </div>
             </div>
 
