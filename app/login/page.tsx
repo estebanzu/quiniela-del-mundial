@@ -21,6 +21,31 @@ export default function LoginPage() {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [introStage, setIntroStage] = useState<'visible' | 'fading' | 'finished'>('visible')
+  const [countdown, setCountdown] = useState<{ days: number; hours: number; minutes: number; seconds: number } | null>(null)
+
+  // Countdown to June 11, 2026 at 09:00 AM (local time)
+  useEffect(() => {
+    const target = new Date('2026-06-11T09:00:00').getTime()
+
+    const update = () => {
+      const now = Date.now()
+      const diff = target - now
+      if (diff <= 0) {
+        setCountdown(null)
+        return
+      }
+      setCountdown({
+        days: Math.floor(diff / (1000 * 60 * 60 * 24)),
+        hours: Math.floor((diff / (1000 * 60 * 60)) % 24),
+        minutes: Math.floor((diff / (1000 * 60)) % 60),
+        seconds: Math.floor((diff / 1000) % 60),
+      })
+    }
+
+    update()
+    const interval = setInterval(update, 1000)
+    return () => clearInterval(interval)
+  }, [])
 
   useEffect(() => {
     // Start fading out the intro screen at 3.5s
@@ -449,6 +474,26 @@ export default function LoginPage() {
         )}
 
         <div className="mt-6 pt-5 border-t border-slate-800/80 text-center">
+          {countdown && (
+            <div className="mb-4">
+              <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2">Primer partido en</p>
+              <div className="flex justify-center gap-2">
+                {[
+                  { value: countdown.days, label: 'Días' },
+                  { value: countdown.hours, label: 'Hrs' },
+                  { value: countdown.minutes, label: 'Min' },
+                  { value: countdown.seconds, label: 'Seg' },
+                ].map((unit) => (
+                  <div key={unit.label} className="flex flex-col items-center">
+                    <span className="text-lg font-black font-mono text-primary bg-slate-950/80 border border-slate-800 rounded-xl w-12 h-12 flex items-center justify-center">
+                      {String(unit.value).padStart(2, '0')}
+                    </span>
+                    <span className="text-[8px] font-bold uppercase tracking-wider text-slate-500 mt-1">{unit.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <p className="text-[10px] text-slate-500 leading-normal">
             Esta es una quiniela privada solo para la familia. Tu usuario se registrará bajo el dominio seguro <span className="text-primary font-mono font-bold">@{LOCAL_EMAIL_DOMAIN}</span>.
           </p>
