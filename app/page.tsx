@@ -317,7 +317,7 @@ export default function DashboardPage() {
     total_points: number;
   }[]>([])
   const [news, setNews] = useState<any[]>([])
-  const [viewMode, setViewMode] = useState<'predictions' | 'schedule' | 'groups' | 'phases' | 'h2h' | 'admin'>('predictions')
+  const [viewMode, setViewMode] = useState<'predictions' | 'schedule' | 'groups' | 'phases' | 'h2h' | 'stats' | 'admin'>('predictions')
   const [activeGroupIndex, setActiveGroupIndex] = useState(0)
   const [activeScheduleDayIndex, setActiveScheduleDayIndex] = useState(0)
   const [activePredictionsDayIndex, setActivePredictionsDayIndex] = useState(0)
@@ -918,7 +918,7 @@ export default function DashboardPage() {
   })
 
   return (
-    <div className="relative min-h-screen bg-transparent text-white pb-24 overflow-x-hidden">
+    <div className="relative min-h-screen bg-transparent text-white pb-32 overflow-x-hidden">
       {/* Upcoming Match Overlay Bubble */}
       {upcomingMatch && dismissedMatchId !== upcomingMatch.id && (() => {
         const diff = new Date(upcomingMatch.match_date).getTime() - Date.now()
@@ -1063,7 +1063,7 @@ export default function DashboardPage() {
             onClick={(e) => { e.stopPropagation(); setNavDropdownOpen(!navDropdownOpen) }}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-white hover:border-slate-700 transition text-sm font-bold cursor-pointer"
           >
-            <span>{viewMode === 'predictions' ? '🔮 Mis Pronósticos' : viewMode === 'schedule' ? '📅 Calendario' : viewMode === 'groups' ? '🏆 Grupos del Mundial' : viewMode === 'phases' ? '📊 Tabla por Fases' : viewMode === 'h2h' ? '🥊 Cara a Cara' : '🔧 Panel Admin'}</span>
+            <span>{viewMode === 'predictions' ? '🔮 Mis Pronósticos' : viewMode === 'schedule' ? '📅 Calendario' : viewMode === 'groups' ? '🏆 Grupos del Mundial' : viewMode === 'phases' ? '📊 Tabla por Fases' : viewMode === 'h2h' ? '🥊 Cara a Cara' : viewMode === 'stats' ? '📈 Mis Estadísticas' : '🔧 Panel Admin'}</span>
             <svg className={`w-3 h-3 transition-transform ${navDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7"></path>
             </svg>
@@ -1077,6 +1077,7 @@ export default function DashboardPage() {
                 { key: 'groups' as const, label: '🏆 Grupos del Mundial' },
                 { key: 'phases' as const, label: '📊 Tabla por Fases' },
                 { key: 'h2h' as const, label: '🥊 Cara a Cara' },
+                { key: 'stats' as const, label: '📈 Mis Estadísticas' },
               ].map((item) => (
                 <button
                   key={item.key}
@@ -2036,6 +2037,237 @@ export default function DashboardPage() {
           )
         })()}
 
+        {viewMode === 'stats' && (() => {
+          // Finished matches with predictions
+          const finishedPreds = matches
+            .filter(m => m.status === 'finished' && predictions[m.id])
+            .sort((a, b) => new Date(a.match_date).getTime() - new Date(b.match_date).getTime())
+
+          const totalFinished = finishedPreds.length
+          const totalHits = finishedPreds.filter(m => (predictions[m.id]?.points || 0) > 0).length
+          const exactHits = finishedPreds.filter(m => (predictions[m.id]?.points || 0) >= 5).length
+          const effectPct = totalFinished > 0 ? Math.round((totalHits / totalFinished) * 100) : 0
+          const exactPct = totalFinished > 0 ? Math.round((exactHits / totalFinished) * 100) : 0
+
+          // Points by phase
+          const phaseRanges = [
+            { label: 'Fase 1 (Grupos)', min: 1, max: 72 },
+            { label: 'Fase 2 (16avos)', min: 73, max: 88 },
+            { label: 'Fase 3 (Octavos)', min: 89, max: 96 },
+            { label: 'Fase 4 (Cuartos)', min: 97, max: 100 },
+            { label: 'Fase 5 (Semis)', min: 101, max: 102 },
+            { label: 'Fase 6 (Finales)', min: 103, max: 104 },
+          ]
+          const phaseStats = phaseRanges.map(phase => {
+            const phaseMatches = finishedPreds.filter(m => m.id >= phase.min && m.id <= phase.max)
+            const pts = phaseMatches.reduce((s, m) => s + (predictions[m.id]?.points || 0), 0)
+            const hits = phaseMatches.filter(m => (predictions[m.id]?.points || 0) > 0).length
+            return { ...phase, pts, hits, total: phaseMatches.length }
+          })
+          const maxPhasePts = Math.max(...phaseStats.map(p => p.pts), 1)
+
+          // Best streak ever
+          let bestStreak = 0
+          let tempStreak = 0
+          for (const m of finishedPreds) {
+            if ((predictions[m.id]?.points || 0) > 0) { tempStreak++; bestStreak = Math.max(bestStreak, tempStreak) }
+            else tempStreak = 0
+          }
+
+          // Days active (from user_logins we don't have here, approximate from predictions)
+          const predDates = new Set(finishedPreds.map(m => new Date(m.match_date).toISOString().split('T')[0]))
+          const daysActive = predDates.size
+
+          // Days since last prediction
+          const lastPredMatch = [...finishedPreds].reverse()[0]
+          const daysSinceLast = lastPredMatch
+            ? Math.floor((Date.now() - new Date(lastPredMatch.match_date).getTime()) / (1000 * 60 * 60 * 24))
+            : 0
+
+          // Performance over time (group by date, show cumulative points)
+          const dailyPoints: { date: string; pts: number; cumulative: number }[] = []
+          let cumulative = 0
+          const dateMap: Record<string, number> = {}
+          finishedPreds.forEach(m => {
+            const key = new Date(m.match_date).toISOString().split('T')[0]
+            dateMap[key] = (dateMap[key] || 0) + (predictions[m.id]?.points || 0)
+          })
+          Object.keys(dateMap).sort().forEach(date => {
+            cumulative += dateMap[date]
+            dailyPoints.push({ date, pts: dateMap[date], cumulative })
+          })
+
+          return (
+            <section className="mt-8 animate-fadeIn">
+              <div className="mb-6">
+                <h3 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                  📈 Mis Estadísticas
+                </h3>
+                <p className="text-sm text-slate-400 mt-1">
+                  Tu rendimiento histórico, rachas y progreso en el torneo.
+                </p>
+              </div>
+
+              {/* Quick Stats Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+                <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 text-center">
+                  <span className="text-2xl font-black text-primary">{effectPct}%</span>
+                  <span className="block text-[10px] uppercase font-bold text-slate-500 mt-1">Efectividad</span>
+                </div>
+                <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 text-center">
+                  <span className="text-2xl font-black text-amber-400">{exactHits}</span>
+                  <span className="block text-[10px] uppercase font-bold text-slate-500 mt-1">Exactos ({exactPct}%)</span>
+                </div>
+                <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 text-center">
+                  <span className="text-2xl font-black text-orange-400">{bestStreak}</span>
+                  <span className="block text-[10px] uppercase font-bold text-slate-500 mt-1">Mejor Racha</span>
+                </div>
+                <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 text-center">
+                  <span className="text-2xl font-black text-slate-200">{daysActive}</span>
+                  <span className="block text-[10px] uppercase font-bold text-slate-500 mt-1">Días Activo</span>
+                </div>
+              </div>
+
+              {/* Current status row */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
+                <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 text-center">
+                  <span className={`text-2xl font-black ${currentStreak >= 3 ? 'text-orange-400' : 'text-slate-400'}`}>{currentStreak}</span>
+                  <span className="block text-[10px] uppercase font-bold text-slate-500 mt-1">Racha Actual {isOnFire && '🔥'}</span>
+                </div>
+                <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 text-center">
+                  <span className="text-2xl font-black text-slate-300">{totalHits}/{totalFinished}</span>
+                  <span className="block text-[10px] uppercase font-bold text-slate-500 mt-1">Aciertos Total</span>
+                </div>
+                <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 text-center">
+                  <span className={`text-2xl font-black ${daysSinceLast > 2 ? 'text-rose-400' : 'text-emerald-400'}`}>{daysSinceLast}</span>
+                  <span className="block text-[10px] uppercase font-bold text-slate-500 mt-1">Días sin jugar</span>
+                </div>
+              </div>
+
+              {/* Points by Phase Bar Chart */}
+              <div className="glass-card p-6 mb-6">
+                <h4 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+                  ⚽ Aciertos por Fase
+                </h4>
+                <div className="space-y-3">
+                  {phaseStats.map((phase) => (
+                    <div key={phase.label}>
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-xs font-semibold text-slate-400">{phase.label}</span>
+                        <span className="text-xs font-bold text-slate-300">{phase.hits}/{phase.total} aciertos • {phase.pts} pts</span>
+                      </div>
+                      <div className="h-3 rounded-full bg-slate-900 overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-primary to-cyan-400 rounded-full transition-all duration-500"
+                          style={{ width: `${maxPhasePts > 0 ? (phase.pts / maxPhasePts) * 100 : 0}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Cumulative Points Chart */}
+              {dailyPoints.length > 1 && (
+                <div className="glass-card p-6 mb-6">
+                  <h4 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+                    📈 Progreso de Puntos
+                  </h4>
+                  <div className="relative w-full h-[180px]">
+                    <svg viewBox="0 0 600 180" width="100%" height="100%" className="overflow-visible">
+                      <defs>
+                        <linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#00d4ff" stopOpacity="0.3" />
+                          <stop offset="100%" stopColor="#00d4ff" stopOpacity="0" />
+                        </linearGradient>
+                      </defs>
+                      {(() => {
+                        const pad = { top: 10, right: 10, bottom: 30, left: 40 }
+                        const w = 600 - pad.left - pad.right
+                        const h = 180 - pad.top - pad.bottom
+                        const maxPts = Math.max(...dailyPoints.map(d => d.cumulative), 1)
+                        const points = dailyPoints.map((d, i) => ({
+                          x: pad.left + (i / (dailyPoints.length - 1)) * w,
+                          y: pad.top + h - (d.cumulative / maxPts) * h,
+                        }))
+                        const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ')
+                        const areaPath = linePath + ` L${points[points.length - 1].x},${pad.top + h} L${points[0].x},${pad.top + h} Z`
+
+                        return (
+                          <>
+                            {/* Grid lines */}
+                            {[0, 0.25, 0.5, 0.75, 1].map((p, i) => (
+                              <g key={i}>
+                                <line x1={pad.left} y1={pad.top + h * (1 - p)} x2={600 - pad.right} y2={pad.top + h * (1 - p)} stroke="rgba(255,255,255,0.05)" strokeDasharray="4 4" />
+                                <text x={pad.left - 5} y={pad.top + h * (1 - p) + 4} fill="#7d8ba6" fontSize="9" textAnchor="end" className="font-mono">{Math.round(maxPts * p)}</text>
+                              </g>
+                            ))}
+                            {/* Area */}
+                            <path d={areaPath} fill="url(#chartFill)" />
+                            {/* Line */}
+                            <path d={linePath} fill="none" stroke="#00d4ff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                            {/* Dots */}
+                            {points.map((p, i) => (
+                              <circle key={i} cx={p.x} cy={p.y} r="3" fill="#00d4ff" stroke="#0b0f1a" strokeWidth="2" />
+                            ))}
+                            {/* X labels */}
+                            {dailyPoints.filter((_, i) => i % Math.max(1, Math.floor(dailyPoints.length / 6)) === 0).map((d, i) => {
+                              const idx = dailyPoints.indexOf(d)
+                              const x = pad.left + (idx / (dailyPoints.length - 1)) * w
+                              return (
+                                <text key={i} x={x} y={180 - 10} fill="#7d8ba6" fontSize="8" textAnchor="middle">
+                                  {new Date(d.date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                                </text>
+                              )
+                            })}
+                          </>
+                        )
+                      })()}
+                    </svg>
+                  </div>
+                </div>
+              )}
+
+              {/* Gamification Summary */}
+              <div className="glass-card p-6">
+                <h4 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+                  🎮 Resumen de Logros
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className={`p-3 rounded-xl border flex items-center gap-3 ${bestStreak >= 3 ? 'bg-orange-500/5 border-orange-500/20' : 'bg-slate-900/50 border-slate-800'}`}>
+                    <span className="text-2xl">{bestStreak >= 5 ? '🔥' : bestStreak >= 3 ? '⚡' : '💤'}</span>
+                    <div>
+                      <span className="text-xs font-bold text-slate-200 block">Mejor Racha: {bestStreak}</span>
+                      <span className="text-[10px] text-slate-500">{bestStreak >= 5 ? 'Modo bestia desbloqueado' : bestStreak >= 3 ? 'Multiplicador x1.5 alcanzado' : 'Aún no llegas a 3 seguidos'}</span>
+                    </div>
+                  </div>
+                  <div className={`p-3 rounded-xl border flex items-center gap-3 ${exactHits >= 5 ? 'bg-amber-500/5 border-amber-500/20' : 'bg-slate-900/50 border-slate-800'}`}>
+                    <span className="text-2xl">🎯</span>
+                    <div>
+                      <span className="text-xs font-bold text-slate-200 block">Resultados Exactos: {exactHits}</span>
+                      <span className="text-[10px] text-slate-500">{exactHits >= 5 ? '¡Ojo clínico!' : exactHits >= 1 ? 'Buen instinto' : 'Aún sin exactos'}</span>
+                    </div>
+                  </div>
+                  <div className={`p-3 rounded-xl border flex items-center gap-3 ${effectPct >= 60 ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-slate-900/50 border-slate-800'}`}>
+                    <span className="text-2xl">{effectPct >= 60 ? '🧠' : effectPct >= 40 ? '💪' : '🎲'}</span>
+                    <div>
+                      <span className="text-xs font-bold text-slate-200 block">Efectividad: {effectPct}%</span>
+                      <span className="text-[10px] text-slate-500">{effectPct >= 60 ? 'Nivel elite' : effectPct >= 40 ? 'Buen promedio' : 'Hay que mejorar'}</span>
+                    </div>
+                  </div>
+                  <div className={`p-3 rounded-xl border flex items-center gap-3 ${daysSinceLast <= 1 ? 'bg-emerald-500/5 border-emerald-500/20' : daysSinceLast >= 3 ? 'bg-rose-500/5 border-rose-500/20' : 'bg-slate-900/50 border-slate-800'}`}>
+                    <span className="text-2xl">{daysSinceLast <= 1 ? '🟢' : daysSinceLast >= 3 ? '🟡' : '🔵'}</span>
+                    <div>
+                      <span className="text-xs font-bold text-slate-200 block">Actividad: {daysSinceLast <= 1 ? 'Al día' : `${daysSinceLast} días inactivo`}</span>
+                      <span className="text-[10px] text-slate-500">{daysSinceLast <= 1 ? '¡Constancia es clave!' : daysSinceLast >= 3 ? '¡No te duermas!' : 'Podrías ser más constante'}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          )
+        })()}
+
         {viewMode === 'admin' && (
           <section className="mt-8 animate-fadeIn">
             <div>
@@ -2484,6 +2716,74 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
+
+        {/* Medals & Achievements Banner */}
+        {(() => {
+          const medals: { icon: string; msg: string }[] = []
+
+          // Streak medals
+          if (currentStreak >= 5) medals.push({ icon: '🔥', msg: `¡Racha imparable! ${currentStreak} aciertos seguidos. Estás en modo bestia.` })
+          else if (currentStreak >= 3) medals.push({ icon: '🔥', msg: `¡On Fire! Llevas ${currentStreak} aciertos consecutivos. x1.5 activado.` })
+
+          // Best of the day (check if user has most points in leaderboard)
+          if (leaderboard.length > 0 && leaderboard[0]?.username?.toLowerCase() === username.toLowerCase()) {
+            medals.push({ icon: '👑', msg: '¡Sos El Patrón! Vas primero en la tabla general.' })
+          }
+
+          // Same points as someone else
+          const samePointsUser = leaderboard.find(u => u.username.toLowerCase() !== username.toLowerCase() && Number(u.total_points) === totalPoints && totalPoints > 0)
+          if (samePointsUser) medals.push({ icon: '⚔️', msg: `Empatado en puntos con ${samePointsUser.username}. ¡El próximo partido define!` })
+
+          // Zero points on recent finished matches (last 3 all missed)
+          const recentFinished = matches
+            .filter(m => m.status === 'finished' && predictions[m.id])
+            .sort((a, b) => new Date(b.match_date).getTime() - new Date(a.match_date).getTime())
+            .slice(0, 3)
+          const allMissed = recentFinished.length === 3 && recentFinished.every(m => (predictions[m.id]?.points || 0) === 0)
+          if (allMissed) medals.push({ icon: '🙈', msg: 'No pegaste ni una en los últimos 3... ¡Pase por sus productos Tosty!' })
+
+          // Predicted all matches for today
+          const todayKey = new Date().toISOString().split('T')[0]
+          const todayMatches = matches.filter(m => new Date(m.match_date).toISOString().split('T')[0] === todayKey)
+          const todayAllPredicted = todayMatches.length > 0 && todayMatches.every(m => predictions[m.id])
+          if (todayAllPredicted && todayMatches.length > 0) medals.push({ icon: '✅', msg: `¡Todos los partidos de hoy pronosticados! ${todayMatches.length} de ${todayMatches.length}.` })
+
+          // Close to next rank
+          if (totalPoints >= 15 && totalPoints < 20) medals.push({ icon: '👟', msg: '¡Te faltan pocos puntos para ser Mejenguero! Dale con todo.' })
+          if (totalPoints >= 45 && totalPoints < 50) medals.push({ icon: '🦊', msg: '¡Casi sos Zorro Viejo! Un par de aciertos más y subes de rango.' })
+          if (totalPoints >= 140 && totalPoints < 150) medals.push({ icon: '👑', msg: '¡A punto de ser El Patrón! La corona está cerca.' })
+
+          // Second place rivalry
+          if (leaderboard.length >= 2 && leaderboard[1]?.username?.toLowerCase() === username.toLowerCase()) {
+            medals.push({ icon: '🥈', msg: `Vas segundo, a ${Number(leaderboard[0].total_points) - totalPoints} puntos del líder. ¡A cerrar la brecha!` })
+          }
+
+          // Perfect score on a match
+          const perfectCount = Object.values(predictions).filter(p => p.points === 5 || p.points === 8).length
+          if (perfectCount >= 5) medals.push({ icon: '🎯', msg: `¡${perfectCount} resultados exactos! Tenés ojo clínico.` })
+          else if (perfectCount >= 1) medals.push({ icon: '🎯', msg: `¡${perfectCount} resultado${perfectCount > 1 ? 's' : ''} exacto${perfectCount > 1 ? 's' : ''}! Seguí así.` })
+
+          // No predictions yet
+          if (predictedCount === 0) medals.push({ icon: '💤', msg: 'Aún no tenés pronósticos. ¡No te duermas que arranca el mundial!' })
+
+          if (medals.length === 0) return null
+
+          return (
+            <div className="fixed bottom-16 inset-x-0 z-40 bg-slate-950/90 border-t border-slate-800/60 backdrop-blur-sm">
+              <div className="overflow-hidden h-7 flex items-center">
+                <div className="flex gap-10 whitespace-nowrap animate-marquee-left hover:[animation-play-state:paused] cursor-default">
+                  {[...medals, ...medals].map((m, idx) => (
+                    <span key={idx} className="inline-flex items-center gap-2 text-[11px] text-slate-200 font-semibold">
+                      <span className="text-base">{m.icon}</span>
+                      <span>{m.msg}</span>
+                      <span className="text-slate-700">|</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )
+        })()}
 
         {/* Google News RSS Ticker Footer */}
         <footer className="fixed bottom-0 inset-x-0 h-16 bg-slate-950/95 border-t border-slate-900/60 backdrop-blur-md z-50 flex flex-col justify-center py-1 select-none overflow-hidden">
