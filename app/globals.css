@@ -36,6 +36,7 @@
 
   --animate-marquee-left: marquee-left 90s linear infinite;
   --animate-marquee-right: marquee-right 90s linear infinite;
+  --animate-bounce-slow: bounce-slow 3s ease-in-out infinite;
 
   @keyframes marquee-left {
     0% {
@@ -54,6 +55,16 @@
 
     100% {
       transform: translateX(0);
+    }
+  }
+
+  @keyframes bounce-slow {
+    0%, 100% {
+      transform: translateY(0);
+    }
+
+    50% {
+      transform: translateY(-6px);
     }
   }
 }

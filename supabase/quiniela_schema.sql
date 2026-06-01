@@ -149,7 +149,7 @@ begin
     raise exception 'Match not found';
   end if;
   
-  if now() >= match_kickoff - interval '1 hour' then
+  if now() >= match_kickoff - interval '5 minutes' then
     raise exception 'Predictions are locked for this match.';
   end if;
   

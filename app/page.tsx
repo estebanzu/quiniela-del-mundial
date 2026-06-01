@@ -293,6 +293,7 @@ export default function DashboardPage() {
   const [username, setUsername] = useState('Usuario')
   const [userEmail, setUserEmail] = useState('')
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [navDropdownOpen, setNavDropdownOpen] = useState(false)
   const [matches, setMatches] = useState<Match[]>([])
   const [predictions, setPredictions] = useState<Record<number, Prediction>>({})
   const [loading, setLoading] = useState(true)
@@ -321,13 +322,13 @@ export default function DashboardPage() {
   const [activeScheduleDayIndex, setActiveScheduleDayIndex] = useState(0)
   const [activePredictionsDayIndex, setActivePredictionsDayIndex] = useState(0)
 
-  // Close dropdown on outside click
+  // Close dropdowns on outside click
   useEffect(() => {
-    if (!dropdownOpen) return
-    const handleClick = () => setDropdownOpen(false)
+    if (!dropdownOpen && !navDropdownOpen) return
+    const handleClick = () => { setDropdownOpen(false); setNavDropdownOpen(false) }
     document.addEventListener('click', handleClick)
     return () => document.removeEventListener('click', handleClick)
-  }, [dropdownOpen])
+  }, [dropdownOpen, navDropdownOpen])
 
   // Keyboard navigation for groups carousel
   useEffect(() => {
@@ -407,6 +408,7 @@ export default function DashboardPage() {
   const [loadingAdminData, setLoadingAdminData] = useState(false)
   const [adminSearch, setAdminSearch] = useState('')
   const [hoveredBar, setHoveredBar] = useState<number | null>(null)
+  const [dismissedMatchId, setDismissedMatchId] = useState<number | null>(null)
 
   // Password reset modal states
   const [resetUser, setResetUser] = useState<{ id: string; email: string } | null>(null)
@@ -893,8 +895,41 @@ export default function DashboardPage() {
     f6: phaseLeaderboard.length ? Math.max(...phaseLeaderboard.map(u => Number(u.fase6) || 0)) : 0,
   }
 
+  // Upcoming match bubble: shows when a match starts within 1 hour
+  const upcomingMatch = matches.find((m) => {
+    if (m.status === 'finished') return false
+    const diff = new Date(m.match_date).getTime() - Date.now()
+    return diff > 0 && diff <= 60 * 60 * 1000
+  })
+
   return (
     <div className="relative min-h-screen bg-transparent text-white pb-24 overflow-x-hidden">
+      {/* Upcoming Match Overlay Bubble */}
+      {upcomingMatch && dismissedMatchId !== upcomingMatch.id && (() => {
+        const diff = new Date(upcomingMatch.match_date).getTime() - Date.now()
+        const mins = Math.ceil(diff / 60000)
+        return (
+          <div className="fixed top-4 right-4 z-[100] animate-bounce-slow max-w-xs">
+            <div className="bg-slate-900/95 backdrop-blur-md border border-amber-500/40 rounded-2xl p-4 shadow-2xl shadow-amber-500/10">
+              <button
+                onClick={() => setDismissedMatchId(upcomingMatch.id)}
+                className="absolute top-2 right-2 text-slate-500 hover:text-white text-xs cursor-pointer"
+              >✕</button>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                <span className="text-[10px] uppercase font-black tracking-wider text-amber-400">⚡ Próximo partido</span>
+              </div>
+              <p className="text-sm font-bold text-white">
+                {upcomingMatch.home_team} vs {upcomingMatch.away_team}
+              </p>
+              <p className="text-xs text-slate-400 mt-1">
+                Inicia en <span className="text-amber-400 font-bold">{mins} min</span>
+                {mins <= 5 && <span className="text-rose-400 font-bold ml-1">• Predicciones bloqueadas</span>}
+              </p>
+            </div>
+          </div>
+        )
+      })()}
       {/* Stadium/Field Backdrop */}
       <div className="absolute top-0 inset-x-0 h-80 bg-[radial-gradient(circle_at_50%_-20%,rgba(0,212,255,0.15),transparent_70%)] pointer-events-none" />
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#0f172a_1px,transparent_1px),linear-gradient(to_bottom,#0f172a_1px,transparent_1px)] bg-[size:5rem_5rem] [mask-image:linear-gradient(to_bottom,white_30%,transparent_100%)] opacity-20 pointer-events-none" />
@@ -1006,64 +1041,53 @@ export default function DashboardPage() {
           </div>
         </header>
 
-        {/* Tab switcher */}
-        <div className="flex gap-4 border-b border-slate-900 mt-6 mb-2 overflow-x-auto scrollbar-none">
+        {/* Navigation Dropdown */}
+        <div className="relative mt-6 mb-2">
           <button
             type="button"
-            onClick={() => setViewMode('predictions')}
-            className={`pb-4 px-2 font-bold text-xs uppercase tracking-wider transition-all border-b-2 flex items-center gap-2 cursor-pointer whitespace-nowrap ${
-              viewMode === 'predictions'
-                ? 'border-primary text-primary font-extrabold'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
+            onClick={(e) => { e.stopPropagation(); setNavDropdownOpen(!navDropdownOpen) }}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-white hover:border-slate-700 transition text-sm font-bold cursor-pointer"
           >
-            🔮 Mis Pronósticos
+            <span>{viewMode === 'predictions' ? '🔮 Mis Pronósticos' : viewMode === 'schedule' ? '📅 Calendario' : viewMode === 'groups' ? '🏆 Grupos del Mundial' : viewMode === 'phases' ? '📊 Tabla por Fases' : '🔧 Panel Admin'}</span>
+            <svg className={`w-3 h-3 transition-transform ${navDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7"></path>
+            </svg>
           </button>
-          <button
-            type="button"
-            onClick={() => setViewMode('schedule')}
-            className={`pb-4 px-2 font-bold text-xs uppercase tracking-wider transition-all border-b-2 flex items-center gap-2 cursor-pointer whitespace-nowrap ${
-              viewMode === 'schedule'
-                ? 'border-primary text-primary font-extrabold'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            📅 Calendario
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode('groups')}
-            className={`pb-4 px-2 font-bold text-xs uppercase tracking-wider transition-all border-b-2 flex items-center gap-2 cursor-pointer whitespace-nowrap ${
-              viewMode === 'groups'
-                ? 'border-primary text-primary font-extrabold'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            🏆 Grupos del Mundial
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode('phases')}
-            className={`pb-4 px-2 font-bold text-xs uppercase tracking-wider transition-all border-b-2 flex items-center gap-2 cursor-pointer whitespace-nowrap ${
-              viewMode === 'phases'
-                ? 'border-primary text-primary font-extrabold'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            📊 Tabla por Fases
-          </button>
-          {username.toLowerCase() === 'admin' && (
-            <button
-              type="button"
-              onClick={() => setViewMode('admin')}
-              className={`pb-4 px-2 font-bold text-xs uppercase tracking-wider transition-all border-b-2 flex items-center gap-2 cursor-pointer whitespace-nowrap ${
-                viewMode === 'admin'
-                  ? 'border-primary text-primary font-extrabold'
-                  : 'border-transparent text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              🔧 Panel Admin
-            </button>
+
+          {navDropdownOpen && (
+            <div className="absolute left-0 mt-2 w-60 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl shadow-black/40 z-50 overflow-hidden animate-fadeIn">
+              {[
+                { key: 'predictions' as const, label: '🔮 Mis Pronósticos' },
+                { key: 'schedule' as const, label: '📅 Calendario' },
+                { key: 'groups' as const, label: '🏆 Grupos del Mundial' },
+                { key: 'phases' as const, label: '📊 Tabla por Fases' },
+              ].map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => { setViewMode(item.key); setNavDropdownOpen(false) }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-slate-800/60 transition cursor-pointer ${
+                    viewMode === item.key ? 'text-primary font-extrabold' : 'text-slate-300 font-semibold'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+              {username.toLowerCase() === 'admin' && (
+                <>
+                  <div className="border-t border-slate-800"></div>
+                  <button
+                    type="button"
+                    onClick={() => { setViewMode('admin'); setNavDropdownOpen(false) }}
+                    className={`w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-slate-800/60 transition cursor-pointer ${
+                      viewMode === 'admin' ? 'text-primary font-extrabold' : 'text-amber-400 font-semibold'
+                    }`}
+                  >
+                    🔧 Panel Admin
+                  </button>
+                </>
+              )}
+            </div>
           )}
         </div>
 
@@ -2353,8 +2377,8 @@ function MatchCard({
 
   const matchDate = new Date(match.match_date)
   const isFinished = match.status === 'finished'
-  // locked if less than 1 hour away or finished
-  const isLocked = isFinished || (matchDate.getTime() - Date.now() < 3600000)
+  // locked if less than 5 minutes away or finished
+  const isLocked = isFinished || (matchDate.getTime() - Date.now() < 5 * 60 * 1000)
 
   const formattedDate = matchDate.toLocaleString('es-ES', {
     weekday: 'short',
