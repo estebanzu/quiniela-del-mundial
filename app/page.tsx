@@ -189,6 +189,8 @@ const DB_TEAM_TO_SPANISH: Record<string, string> = {
   'Uzbekistan': 'Uzbekistán'
 }
 
+const tTeam = (team: string): string => DB_TEAM_TO_SPANISH[team] || team
+
 type TeamStandings = {
   name: string
   flag: string
@@ -935,7 +937,7 @@ export default function DashboardPage() {
                 <span className="text-[10px] uppercase font-black tracking-wider text-amber-400">⚡ Próximo partido</span>
               </div>
               <p className="text-sm font-bold text-white">
-                {upcomingMatch.home_team} vs {upcomingMatch.away_team}
+                {tTeam(upcomingMatch.home_team)} vs {tTeam(upcomingMatch.away_team)}
               </p>
               <p className="text-xs text-slate-400 mt-1">
                 Inicia en <span className="text-amber-400 font-bold">{mins} min</span>
@@ -1546,9 +1548,9 @@ export default function DashboardPage() {
                                     </div>
 
                                     <div className="flex-1 flex items-center justify-center gap-2 sm:gap-4 px-2">
-                                      <span className="text-xs sm:text-sm font-extrabold text-slate-200 text-right flex-1 break-words leading-tight">{match.home_team}</span>
+                                      <span className="text-xs sm:text-sm font-extrabold text-slate-200 text-right flex-1 break-words leading-tight">{tTeam(match.home_team)}</span>
                                       <span className="text-[10px] font-bold text-slate-650 uppercase tracking-widest shrink-0">vs</span>
-                                      <span className="text-xs sm:text-sm font-extrabold text-slate-200 text-left flex-1 break-words leading-tight">{match.away_team}</span>
+                                      <span className="text-xs sm:text-sm font-extrabold text-slate-200 text-left flex-1 break-words leading-tight">{tTeam(match.away_team)}</span>
                                     </div>
                                   </div>
 
@@ -3099,7 +3101,7 @@ function MatchCard({
           {/* Home Team */}
           <div className="flex-1 text-right pr-2 min-w-0">
             <span className="text-xs sm:text-base font-extrabold text-slate-100 break-words leading-tight block">
-              {match.home_team}
+              {tTeam(match.home_team)}
             </span>
           </div>
 
@@ -3143,7 +3145,7 @@ function MatchCard({
           {/* Away Team */}
           <div className="flex-1 text-left pl-2 min-w-0">
             <span className="text-xs sm:text-base font-extrabold text-slate-100 break-words leading-tight block">
-              {match.away_team}
+              {tTeam(match.away_team)}
             </span>
           </div>
         </div>
