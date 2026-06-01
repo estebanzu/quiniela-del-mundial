@@ -79,32 +79,60 @@ returns trigger
 language plpgsql
 security definer
 as $$
+declare
+  pred_rec record;
+  prev_rec record;
+  base_pts int;
+  streak int;
+  final_pts int;
 begin
   if (new.status = 'finished') and 
      (old.status is distinct from 'finished' or 
       old.home_score is distinct from new.home_score or 
       old.away_score is distinct from new.away_score) then
     
-    update public.predictions p
-    set points = case
-      -- 1. Exact score match (home and away goals match exactly) = 5 points
-      when new.home_score = p.predicted_home and new.away_score = p.predicted_away then 5
-      
-      -- 2. Correct outcome prediction
-      when sign(new.home_score - new.away_score) = sign(p.predicted_home - p.predicted_away) then
-        case
-          -- Correct tie outcome but not exact score (e.g. predicted 1-1, actual 2-2) = 1 point
-          when new.home_score = new.away_score then 1
-          -- Correct winner outcome but not exact score (e.g. predicted 2-0, actual 1-0) = 3 points
-          else 3
-        end
-      
-      -- 3. Wrong prediction = 0 points
-      else 0
-    end
-    where p.match_id = new.id;
+    for pred_rec in select * from public.predictions where match_id = new.id loop
+      -- Calculate base points
+      base_pts := case
+        when new.home_score = pred_rec.predicted_home and new.away_score = pred_rec.predicted_away then 5
+        when sign(new.home_score - new.away_score) = sign(pred_rec.predicted_home - pred_rec.predicted_away) then
+          case when new.home_score = new.away_score then 1 else 3 end
+        else 0
+      end;
+
+      -- If the user scored, check their streak on previous matches
+      if base_pts > 0 then
+        streak := 0;
+        for prev_rec in
+          select p.points
+          from public.predictions p
+          inner join public.matches m on m.id = p.match_id
+          where p.user_id = pred_rec.user_id
+            and m.status = 'finished'
+            and m.match_date < new.match_date
+          order by m.match_date desc
+        loop
+          if prev_rec.points > 0 then
+            streak := streak + 1;
+          else
+            exit;
+          end if;
+        end loop;
+
+        -- Apply x1.5 multiplier if streak >= 3 consecutive wins before this match
+        if streak >= 3 then
+          final_pts := ceil(base_pts * 1.5);
+        else
+          final_pts := base_pts;
+        end if;
+      else
+        final_pts := 0;
+      end if;
+
+      update public.predictions set points = final_pts where id = pred_rec.id;
+    end loop;
+
   elsif (new.status = 'pending' and old.status = 'finished') then
-    -- Reset points to 0 if the match is changed back to pending
     update public.predictions p
     set points = 0
     where p.match_id = new.id;

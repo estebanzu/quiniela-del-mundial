@@ -317,7 +317,7 @@ export default function DashboardPage() {
     total_points: number;
   }[]>([])
   const [news, setNews] = useState<any[]>([])
-  const [viewMode, setViewMode] = useState<'predictions' | 'schedule' | 'groups' | 'phases' | 'admin'>('predictions')
+  const [viewMode, setViewMode] = useState<'predictions' | 'schedule' | 'groups' | 'phases' | 'h2h' | 'admin'>('predictions')
   const [activeGroupIndex, setActiveGroupIndex] = useState(0)
   const [activeScheduleDayIndex, setActiveScheduleDayIndex] = useState(0)
   const [activePredictionsDayIndex, setActivePredictionsDayIndex] = useState(0)
@@ -409,6 +409,7 @@ export default function DashboardPage() {
   const [adminSearch, setAdminSearch] = useState('')
   const [hoveredBar, setHoveredBar] = useState<number | null>(null)
   const [dismissedMatchId, setDismissedMatchId] = useState<number | null>(null)
+  const [h2hRival, setH2hRival] = useState('')
 
   // Password reset modal states
   const [resetUser, setResetUser] = useState<{ id: string; email: string } | null>(null)
@@ -860,6 +861,20 @@ export default function DashboardPage() {
   // Calculate completed predictions count
   const predictedCount = Object.keys(predictions).length
 
+  // Calculate current streak (consecutive matches with points > 0, ordered by match date)
+  const currentStreak = (() => {
+    const finishedWithPred = matches
+      .filter(m => m.status === 'finished' && predictions[m.id])
+      .sort((a, b) => new Date(b.match_date).getTime() - new Date(a.match_date).getTime())
+    let streak = 0
+    for (const m of finishedWithPred) {
+      if ((predictions[m.id]?.points || 0) > 0) streak++
+      else break
+    }
+    return streak
+  })()
+  const isOnFire = currentStreak >= 3
+
   // Filter matches based on selection
   const filteredMatches = matches.filter((match) => {
     if (filter === 'pending') {
@@ -1048,7 +1063,7 @@ export default function DashboardPage() {
             onClick={(e) => { e.stopPropagation(); setNavDropdownOpen(!navDropdownOpen) }}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-white hover:border-slate-700 transition text-sm font-bold cursor-pointer"
           >
-            <span>{viewMode === 'predictions' ? '🔮 Mis Pronósticos' : viewMode === 'schedule' ? '📅 Calendario' : viewMode === 'groups' ? '🏆 Grupos del Mundial' : viewMode === 'phases' ? '📊 Tabla por Fases' : '🔧 Panel Admin'}</span>
+            <span>{viewMode === 'predictions' ? '🔮 Mis Pronósticos' : viewMode === 'schedule' ? '📅 Calendario' : viewMode === 'groups' ? '🏆 Grupos del Mundial' : viewMode === 'phases' ? '📊 Tabla por Fases' : viewMode === 'h2h' ? '🥊 Cara a Cara' : '🔧 Panel Admin'}</span>
             <svg className={`w-3 h-3 transition-transform ${navDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7"></path>
             </svg>
@@ -1061,6 +1076,7 @@ export default function DashboardPage() {
                 { key: 'schedule' as const, label: '📅 Calendario' },
                 { key: 'groups' as const, label: '🏆 Grupos del Mundial' },
                 { key: 'phases' as const, label: '📊 Tabla por Fases' },
+                { key: 'h2h' as const, label: '🥊 Cara a Cara' },
               ].map((item) => (
                 <button
                   key={item.key}
@@ -1100,12 +1116,18 @@ export default function DashboardPage() {
                 <div>
                   <p className="text-xs uppercase font-extrabold tracking-widest text-primary">Bienvenido de vuelta</p>
                   <h2 className="text-3xl font-black tracking-tight text-white mt-1">¡Hola, {username}!</h2>
-                  <p className="text-slate-400 text-sm mt-1">Sigue prediciendo para mantenerte arriba.</p>
+                  <p className="text-slate-400 text-sm mt-1 flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-900 border border-slate-800 text-xs font-bold">
+                      <span>{getUserRank(totalPoints).icon}</span>
+                      <span className="text-slate-200">{getUserRank(totalPoints).label}</span>
+                    </span>
+                    <span>Sigue prediciendo para subir de rango.</span>
+                  </p>
                 </div>
 
                 {/* Score Metrics Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-2 gap-4">
-                  <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 flex items-center gap-3.5 min-w-[140px]">
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 flex items-center gap-3 min-w-[120px]">
                     <div className="w-10 h-10 bg-amber-500/10 rounded-xl flex items-center justify-center text-amber-500">
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5a2 2 0 10-2 2h2zm0 0h4m-4 0H8m0 0v13m0-13t2 2m-2-2L6 8M6 8V6a2 2 0 012-2h2m0 16a2 2 0 01-2-2v-1m2 3H6"></path>
@@ -1113,11 +1135,11 @@ export default function DashboardPage() {
                     </div>
                     <div>
                       <span className="block text-[10px] uppercase font-bold text-slate-500 tracking-wider">Puntos</span>
-                      <span className="text-xl font-black text-amber-400">{totalPoints} pts</span>
+                      <span className="text-xl font-black text-amber-400">{totalPoints}</span>
                     </div>
                   </div>
 
-                  <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 flex items-center gap-3.5 min-w-[140px]">
+                  <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 flex items-center gap-3 min-w-[120px]">
                     <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
@@ -1125,7 +1147,18 @@ export default function DashboardPage() {
                     </div>
                     <div>
                       <span className="block text-[10px] uppercase font-bold text-slate-500 tracking-wider">Pronósticos</span>
-                      <span className="text-xl font-black text-slate-200">{predictedCount} / {matches.length}</span>
+                      <span className="text-xl font-black text-slate-200">{predictedCount}/{matches.length}</span>
+                    </div>
+                  </div>
+
+                  <div className={`bg-slate-950/80 border rounded-2xl p-4 flex items-center gap-3 min-w-[120px] ${isOnFire ? 'border-orange-500/40 shadow-lg shadow-orange-500/10' : 'border-slate-800'}`}>
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg ${isOnFire ? 'bg-orange-500/20' : 'bg-slate-800'}`}>
+                      {isOnFire ? '🔥' : '⚡'}
+                    </div>
+                    <div>
+                      <span className="block text-[10px] uppercase font-bold text-slate-500 tracking-wider">Racha</span>
+                      <span className={`text-xl font-black ${isOnFire ? 'text-orange-400' : 'text-slate-400'}`}>{currentStreak}</span>
+                      {isOnFire && <span className="block text-[9px] font-bold text-orange-400 uppercase">On Fire!</span>}
                     </div>
                   </div>
                 </div>
@@ -1197,8 +1230,10 @@ export default function DashboardPage() {
                           <span className="w-6 text-xs font-black text-slate-500 text-center">
                             #{index + 1}
                           </span>
-                          <span className="text-sm font-extrabold truncate">
+                          <span className="text-sm font-extrabold truncate flex items-center gap-1.5">
+                            <span className="text-base">{getUserRank(Number(row.total_points)).icon}</span>
                             {row.username} {isMe && <span className="text-[10px] bg-primary text-slate-950 px-1.5 py-0.5 rounded font-black ml-1 uppercase">Tú</span>}
+                            {isMe && isOnFire && <span className="text-[10px] bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded font-black ml-1 border border-orange-500/30">🔥 On Fire</span>}
                           </span>
                         </div>
                         <div className="flex items-center gap-3">
@@ -1885,6 +1920,117 @@ export default function DashboardPage() {
           </section>
         )}
 
+        {viewMode === 'h2h' && (() => {
+          const otherUsers = leaderboard.filter(u => u.username.toLowerCase() !== username.toLowerCase())
+          const rival = otherUsers.find(u => u.username === h2hRival)
+          const me = leaderboard.find(u => u.username.toLowerCase() === username.toLowerCase())
+
+          const myPoints = me ? Number(me.total_points) : totalPoints
+          const rivalPoints = rival ? Number(rival.total_points) : 0
+          const myPreds = me ? Number(me.predictions_count) : predictedCount
+          const rivalPreds = rival ? Number(rival.predictions_count) : 0
+
+          const totalCombined = myPoints + rivalPoints
+          const myPct = totalCombined > 0 ? Math.round((myPoints / totalCombined) * 100) : 50
+          const rivalPct = 100 - myPct
+
+          const diff = myPoints - rivalPoints
+          let rivalryMsg = ''
+          if (rival) {
+            if (diff > 0) rivalryMsg = `¡Llevas ${diff} puntos de ventaja sobre ${rival.username}! 💪`
+            else if (diff < 0) rivalryMsg = `${rival.username} te lleva ${Math.abs(diff)} puntos. ¡A recuperar terreno! 🔥`
+            else rivalryMsg = `¡Están empatados! El próximo partido define. ⚔️`
+          }
+
+          return (
+            <section className="mt-8 animate-fadeIn">
+              <div className="mb-6">
+                <h3 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                  🥊 Cara a Cara
+                </h3>
+                <p className="text-sm text-slate-400 mt-1">
+                  Selecciona un rival y compara tu desempeño directamente.
+                </p>
+              </div>
+
+              {/* Rival selector */}
+              <div className="mb-6">
+                <label className="block text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-2">Elige tu rival</label>
+                <select
+                  value={h2hRival}
+                  onChange={(e) => setH2hRival(e.target.value)}
+                  className="w-full sm:w-64 px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-white text-sm font-semibold outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition cursor-pointer"
+                >
+                  <option value="">-- Seleccionar --</option>
+                  {otherUsers.map((u) => (
+                    <option key={u.username} value={u.username}>{u.username}</option>
+                  ))}
+                </select>
+              </div>
+
+              {rival ? (
+                <div className="glass-card p-6">
+                  {/* VS Header */}
+                  <div className="flex items-center justify-center gap-6 mb-6">
+                    <div className="text-center">
+                      <span className="text-2xl block">{getUserRank(myPoints).icon}</span>
+                      <span className="text-sm font-black text-white mt-1 block">{username}</span>
+                      <span className="text-xs text-slate-400 font-mono">{myPoints} pts</span>
+                    </div>
+                    <span className="text-2xl font-black text-slate-600">VS</span>
+                    <div className="text-center">
+                      <span className="text-2xl block">{getUserRank(rivalPoints).icon}</span>
+                      <span className="text-sm font-black text-white mt-1 block">{rival.username}</span>
+                      <span className="text-xs text-slate-400 font-mono">{rivalPoints} pts</span>
+                    </div>
+                  </div>
+
+                  {/* Progress bar */}
+                  <div className="mb-4">
+                    <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider mb-1.5">
+                      <span className="text-primary">{myPct}%</span>
+                      <span className="text-rose-400">{rivalPct}%</span>
+                    </div>
+                    <div className="h-3 rounded-full bg-slate-900 overflow-hidden flex">
+                      <div className="h-full bg-gradient-to-r from-primary to-cyan-400 transition-all duration-500" style={{ width: `${myPct}%` }}></div>
+                      <div className="h-full bg-gradient-to-r from-rose-500 to-rose-400 transition-all duration-500" style={{ width: `${rivalPct}%` }}></div>
+                    </div>
+                  </div>
+
+                  {/* Rivalry message */}
+                  <p className="text-center text-sm font-bold text-slate-300 mb-6">{rivalryMsg}</p>
+
+                  {/* Stats comparison */}
+                  <div className="grid grid-cols-3 gap-4 text-center">
+                    <div className="bg-slate-950/60 border border-slate-900 rounded-xl p-3">
+                      <span className="text-[10px] uppercase font-bold text-slate-500 block">Puntos</span>
+                      <span className={`text-lg font-black block ${myPoints >= rivalPoints ? 'text-primary' : 'text-slate-400'}`}>{myPoints}</span>
+                      <span className="text-xs text-slate-600">vs {rivalPoints}</span>
+                    </div>
+                    <div className="bg-slate-950/60 border border-slate-900 rounded-xl p-3">
+                      <span className="text-[10px] uppercase font-bold text-slate-500 block">Pronósticos</span>
+                      <span className={`text-lg font-black block ${myPreds >= rivalPreds ? 'text-primary' : 'text-slate-400'}`}>{myPreds}</span>
+                      <span className="text-xs text-slate-600">vs {rivalPreds}</span>
+                    </div>
+                    <div className="bg-slate-950/60 border border-slate-900 rounded-xl p-3">
+                      <span className="text-[10px] uppercase font-bold text-slate-500 block">Efectividad</span>
+                      <span className={`text-lg font-black block ${(myPreds > 0 ? myPoints / myPreds : 0) >= (rivalPreds > 0 ? rivalPoints / rivalPreds : 0) ? 'text-primary' : 'text-slate-400'}`}>
+                        {myPreds > 0 ? (myPoints / myPreds).toFixed(1) : '0.0'}
+                      </span>
+                      <span className="text-xs text-slate-600">vs {rivalPreds > 0 ? (rivalPoints / rivalPreds).toFixed(1) : '0.0'}</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="glass-card p-12 text-center">
+                  <span className="text-4xl block mb-3">🥊</span>
+                  <p className="text-slate-400 font-semibold">Selecciona un rival arriba para ver la comparación.</p>
+                </div>
+              )}
+            </section>
+          )
+        })()}
+
         {viewMode === 'admin' && (
           <section className="mt-8 animate-fadeIn">
             <div>
@@ -2381,6 +2527,13 @@ export default function DashboardPage() {
   )
 }
 
+function getUserRank(points: number): { label: string; icon: string } {
+  if (points >= 150) return { label: 'El Patrón', icon: '👑' }
+  if (points >= 50) return { label: 'Zorro Viejo', icon: '🦊' }
+  if (points >= 20) return { label: 'Mejenguero', icon: '👟' }
+  return { label: 'Bateador', icon: '⚾' }
+}
+
 function MatchCard({
   userId,
   match,
@@ -2633,20 +2786,20 @@ function MatchCard({
       </div>
 
       {/* Main Teams Matchup Layout */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-5">
+      <div className="flex flex-col items-center gap-4">
         
         {/* Teams and Score inputs container */}
-        <div className="flex-1 w-full flex items-center justify-center gap-2 sm:gap-4 select-none">
+        <div className="w-full flex items-center justify-center gap-2 sm:gap-4 select-none">
           
           {/* Home Team */}
-          <div className="flex-1 text-right pr-2">
-            <span className="text-sm sm:text-base font-extrabold text-slate-100 truncate block">
+          <div className="flex-1 text-right pr-2 min-w-0">
+            <span className="text-xs sm:text-base font-extrabold text-slate-100 break-words leading-tight block">
               {match.home_team}
             </span>
           </div>
 
           {/* Goal Inputs block */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <input
               type="number"
               min="0"
@@ -2683,20 +2836,20 @@ function MatchCard({
           </div>
 
           {/* Away Team */}
-          <div className="flex-1 text-left pl-2">
-            <span className="text-sm sm:text-base font-extrabold text-slate-100 truncate block">
+          <div className="flex-1 text-left pl-2 min-w-0">
+            <span className="text-xs sm:text-base font-extrabold text-slate-100 break-words leading-tight block">
               {match.away_team}
             </span>
           </div>
         </div>
 
         {/* Action Button */}
-        <div className="w-full sm:w-auto">
+        <div className="w-full">
           {adminMode ? (
             <button
               type="submit"
               disabled={saving}
-              className="w-full sm:w-28 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black py-3 px-4 rounded-xl transition flex items-center justify-center gap-1.5 text-xs uppercase tracking-wider shadow active:scale-95 duration-150 cursor-pointer"
+              className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black py-3 px-4 rounded-xl transition flex items-center justify-center gap-1.5 text-xs uppercase tracking-wider shadow active:scale-95 duration-150 cursor-pointer"
             >
               {saving ? (
                 <svg className="animate-spin h-4 w-4 text-slate-950" fill="none" viewBox="0 0 24 24">
@@ -2711,7 +2864,7 @@ function MatchCard({
             <button
               type="submit"
               disabled={saving}
-              className="w-full sm:w-28 bg-gradient-to-r from-slate-900 to-slate-950 hover:from-slate-850 hover:to-slate-900 text-primary hover:text-cyan-400 font-bold py-3 px-4 rounded-xl border border-slate-800 hover:border-slate-700 transition flex items-center justify-center gap-1.5 text-xs uppercase tracking-wider shadow-inner active:scale-95 duration-150 cursor-pointer"
+              className="w-full bg-gradient-to-r from-slate-900 to-slate-950 hover:from-slate-850 hover:to-slate-900 text-primary hover:text-cyan-400 font-bold py-3 px-4 rounded-xl border border-slate-800 hover:border-slate-700 transition flex items-center justify-center gap-1.5 text-xs uppercase tracking-wider shadow-inner active:scale-95 duration-150 cursor-pointer"
             >
               {saving ? (
                 <svg className="animate-spin h-4 w-4 text-primary" fill="none" viewBox="0 0 24 24">
@@ -2725,7 +2878,7 @@ function MatchCard({
               )}
             </button>
           ) : (
-            <div className="w-full sm:w-28 py-3 px-4 rounded-xl bg-slate-950/20 border border-slate-900/60 text-slate-500 font-bold text-xs uppercase tracking-wider text-center select-none">
+            <div className="w-full py-3 px-4 rounded-xl bg-slate-950/20 border border-slate-900/60 text-slate-500 font-bold text-xs uppercase tracking-wider text-center select-none">
               🔒 Bloqueado
             </div>
           )}
