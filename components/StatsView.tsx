@@ -2,6 +2,7 @@
 
 import type { Match, Prediction } from '../lib/types'
 import { supabase } from '../lib/supabase'
+import { FireEffect } from './FireEffect'
 
 interface StatsViewProps {
   matches: Match[]
@@ -163,9 +164,10 @@ export function StatsView({
 
       {/* Current status row */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
-        <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 text-center">
-          <span className={`text-2xl font-black ${currentStreak >= 3 ? 'text-orange-400' : 'text-slate-400'}`}>{currentStreak}</span>
-          <span className="block text-[10px] uppercase font-bold text-slate-500 mt-1">Racha Actual {isOnFire && '🔥'}</span>
+        <div className={`relative overflow-hidden bg-slate-950/80 border rounded-2xl p-4 text-center ${isOnFire ? 'border-orange-500/40 shadow-lg shadow-orange-500/10' : 'border-slate-800'}`}>
+          {isOnFire && <FireEffect />}
+          <span className={`relative z-10 text-2xl font-black block ${currentStreak >= 3 ? 'text-orange-400' : 'text-slate-400'}`}>{currentStreak}</span>
+          <span className="relative z-10 block text-[10px] uppercase font-bold text-slate-500 mt-1">Racha Actual {isOnFire && '🔥'}</span>
         </div>
         <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 text-center">
           <span className="text-2xl font-black text-slate-300">{totalHits}/{totalFinished}</span>

@@ -14,6 +14,7 @@ import { PhasesView } from '../components/PhasesView'
 import { H2HView } from '../components/H2HView'
 import { StatsView } from '../components/StatsView'
 import { AdminView } from '../components/AdminView'
+import { FireEffect } from '../components/FireEffect'
 
 const fallbackNews = [
   { title: "Mundial 2026: La gran cita en Norteamérica con 48 selecciones", source: "FIFA", link: "https://www.fifa.com" },
@@ -681,11 +682,12 @@ export default function DashboardPage() {
                       <span className="text-xl font-black text-slate-200">{predictedCount}/{matches.length}</span>
                     </div>
                   </div>
-                  <div className={`bg-slate-950/80 border rounded-2xl p-4 flex items-center gap-3 min-w-[120px] ${isOnFire ? 'border-orange-500/40 shadow-lg shadow-orange-500/10' : 'border-slate-800'}`}>
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg ${isOnFire ? 'bg-orange-500/20' : 'bg-slate-800'}`}>
+                  <div className={`relative overflow-hidden bg-slate-950/80 border rounded-2xl p-4 flex items-center gap-3 min-w-[120px] ${isOnFire ? 'border-orange-500/40 shadow-lg shadow-orange-500/10' : 'border-slate-800'}`}>
+                    {isOnFire && <FireEffect />}
+                    <div className={`relative z-10 w-10 h-10 rounded-xl flex items-center justify-center text-lg ${isOnFire ? 'bg-orange-500/20' : 'bg-slate-800'}`}>
                       {isOnFire ? '🔥' : '⚡'}
                     </div>
-                    <div>
+                    <div className="relative z-10">
                       <span className="block text-[10px] uppercase font-bold text-slate-500 tracking-wider">Racha</span>
                       <span className={`text-xl font-black ${isOnFire ? 'text-orange-400' : 'text-slate-400'}`}>{currentStreak}</span>
                       {isOnFire && <span className="block text-[9px] font-bold text-orange-400 uppercase">On Fire!</span>}

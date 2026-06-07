@@ -199,6 +199,30 @@ export function MatchCard({
           : 'bg-slate-900/60 border-slate-800/80 hover:border-slate-750/80 shadow-primary/5'
       }`}
     >
+      {saving && (
+        <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-[4px] z-10 flex flex-col justify-between p-5 animate-pulse select-none">
+          {/* Header Skeleton */}
+          <div className="flex justify-between items-center mb-4">
+            <div className="h-3 w-28 bg-slate-800 rounded-md"></div>
+            <div className="h-5 w-16 bg-slate-800 rounded-full"></div>
+          </div>
+          {/* Matchup Skeleton */}
+          <div className="flex items-center justify-center gap-4 my-auto w-full">
+            <div className="h-4 w-20 bg-slate-800 rounded-md ml-auto"></div>
+            <div className="flex items-center gap-2">
+              <div className="h-12 w-12 bg-slate-800 rounded-xl"></div>
+              <div className="h-3 w-4 bg-slate-800 rounded-sm"></div>
+              <div className="h-12 w-12 bg-slate-800 rounded-xl"></div>
+            </div>
+            <div className="h-4 w-20 bg-slate-800 rounded-md mr-auto"></div>
+          </div>
+          {/* Button Skeleton */}
+          <div className="flex gap-2 mt-4">
+            {!adminMode && !isLocked && <div className="h-12 w-12 bg-slate-800 rounded-xl"></div>}
+            <div className="h-12 flex-1 bg-slate-800 rounded-xl"></div>
+          </div>
+        </div>
+      )}
       {/* Top Meta info row */}
       <div className="flex justify-between items-center gap-4 mb-4">
         <div className="flex flex-col gap-0.5">
