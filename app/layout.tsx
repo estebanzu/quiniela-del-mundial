@@ -2,11 +2,27 @@ import './globals.css'
 import { Toaster } from 'react-hot-toast'
 
 export const metadata = {
-  title: 'Quiniela Mundial',
-  description: 'Quiniela para jugar con amigos',
+  title: 'Quiniela Mundial 2026',
+  description: 'Pronósticos y quiniela de la Copa Mundial FIFA 2026',
+  manifest: '/manifest.json',
+  themeColor: '#008080',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Quiniela',
+  },
   icons: {
     icon: '/favicon.svg',
+    apple: '/icons/icon-192.png',
   },
+}
+
+export const viewport = {
+  themeColor: '#008080',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 }
 
 export default function RootLayout({
@@ -16,6 +32,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es" suppressHydrationWarning>
+      <head>
+        <link rel="manifest" href="/manifest.json" />
+        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+      </head>
       <body className="min-h-screen" suppressHydrationWarning>
         {children}
         <Toaster
@@ -40,7 +62,24 @@ export default function RootLayout({
             },
           }}
         />
+        <ServiceWorkerRegister />
       </body>
     </html>
+  )
+}
+
+function ServiceWorkerRegister() {
+  return (
+    <script
+      dangerouslySetInnerHTML={{
+        __html: `
+          if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+              navigator.serviceWorker.register('/sw.js').catch(() => {})
+            })
+          }
+        `,
+      }}
+    />
   )
 }
