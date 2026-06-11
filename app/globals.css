@@ -181,3 +181,90 @@ svg {
   box-shadow:
     0 0 24px rgba(0, 212, 255, 0.35);
 }
+
+
+/* On Fire Sparkle Particles */
+@keyframes fire-rise {
+  0% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateY(-100px) scale(0);
+    opacity: 0;
+  }
+}
+
+@keyframes fire-drift {
+  0% {
+    transform: translateY(0) translateX(0) scale(1);
+    opacity: 0.9;
+  }
+  25% {
+    transform: translateY(-30px) translateX(8px) scale(0.9);
+  }
+  50% {
+    transform: translateY(-60px) translateX(-5px) scale(0.7);
+    opacity: 0.6;
+  }
+  75% {
+    transform: translateY(-85px) translateX(4px) scale(0.4);
+  }
+  100% {
+    transform: translateY(-110px) translateX(-3px) scale(0);
+    opacity: 0;
+  }
+}
+
+@keyframes fire-glow-pulse {
+  0%, 100% {
+    opacity: 0.15;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.3;
+    transform: scale(1.05);
+  }
+}
+
+.fire-particle {
+  position: absolute;
+  bottom: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #f97316, #fbbf24);
+  box-shadow: 0 0 6px 2px rgba(249, 115, 22, 0.6);
+  animation: fire-drift 2s infinite ease-out;
+}
+
+.fire-particle:nth-child(2n) {
+  width: 4px;
+  height: 4px;
+  background: radial-gradient(circle, #fbbf24, #fde68a);
+  box-shadow: 0 0 4px 1px rgba(251, 191, 36, 0.5);
+  animation-duration: 1.6s;
+}
+
+.fire-particle:nth-child(3n) {
+  width: 3px;
+  height: 3px;
+  background: radial-gradient(circle, #ef4444, #f97316);
+  box-shadow: 0 0 5px 2px rgba(239, 68, 68, 0.4);
+  animation-duration: 2.3s;
+}
+
+.fire-particle-glow {
+  position: absolute;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80%;
+  height: 40px;
+  background: radial-gradient(ellipse at center, rgba(249, 115, 22, 0.2), transparent 70%);
+  border-radius: 50%;
+  animation: fire-glow-pulse 2s infinite ease-in-out;
+}

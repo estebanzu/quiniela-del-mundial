@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
 
 type Match = {
@@ -484,7 +485,7 @@ export default function DashboardPage() {
     e.preventDefault()
     if (!resetUser || !newPassword) return
     if (newPassword.length < 6) {
-      alert('La contraseña debe tener al menos 6 caracteres.')
+      toast.error('La contraseña debe tener al menos 6 caracteres.')
       return
     }
     
@@ -496,12 +497,12 @@ export default function DashboardPage() {
       })
       if (rpcErr) throw rpcErr
       
-      alert(data || 'Contraseña restablecida con éxito.')
+      toast.success(data || 'Contraseña restablecida con éxito.')
       setResetUser(null)
       setNewPassword('')
     } catch (err: any) {
       console.error(err)
-      alert(err.message || 'Error al restablecer la contraseña.')
+      toast.error(err.message || 'Error al restablecer la contraseña.')
     } finally {
       setResettingPassword(false)
     }
@@ -516,12 +517,12 @@ export default function DashboardPage() {
       })
       if (rpcErr) throw rpcErr
       
-      alert(data || 'Usuario eliminado con éxito.')
+      toast.success(data || 'Usuario eliminado con éxito.')
       setDeleteUser(null)
       await fetchAdminData()
     } catch (err: any) {
       console.error(err)
-      alert(err.message || 'Error al eliminar el usuario.')
+      toast.error(err.message || 'Error al eliminar el usuario.')
     } finally {
       setDeletingUser(false)
     }
@@ -693,7 +694,7 @@ export default function DashboardPage() {
 
       const data = await res.json()
       await loadMatchesAndPredictions(userId)
-      alert(`¡Sincronización exitosa! Se actualizaron ${data.count} partidos del Mundial.`)
+      toast.success(`¡Sincronización exitosa! Se actualizaron ${data.count} partidos del Mundial.`)
     } catch (err: any) {
       console.error(err)
       setError(err.message || 'Error durante la sincronización.')
@@ -712,7 +713,7 @@ export default function DashboardPage() {
       
       // Reload matches and predictions
       await loadMatchesAndPredictions(userId)
-      alert(data || '¡Emulación completa del Mundial finalizada con éxito!')
+      toast.success(data || '¡Emulación completa del Mundial finalizada con éxito!')
     } catch (err: any) {
       console.error(err)
       setError(err.message || 'Error al emular el Mundial.')
@@ -732,7 +733,7 @@ export default function DashboardPage() {
       
       // Reload matches and predictions
       await loadMatchesAndPredictions(userId)
-      alert(data || '¡Usuarios dummy y pronósticos creados con éxito!')
+      toast.success(data || '¡Usuarios dummy y pronósticos creados con éxito!')
     } catch (err: any) {
       console.error(err)
       setError(err.message || 'Error al crear usuarios dummy.')
@@ -757,7 +758,7 @@ export default function DashboardPage() {
       
       // Reload matches and predictions
       await loadMatchesAndPredictions(userId)
-      alert(data || '¡Emulación reiniciada y dummies eliminados con éxito!')
+      toast.success(data || '¡Emulación reiniciada y dummies eliminados con éxito!')
     } catch (err: any) {
       console.error(err)
       setError(err.message || 'Error al eliminar dummies y pruebas.')
@@ -1121,7 +1122,19 @@ export default function DashboardPage() {
         {viewMode === 'predictions' && (
           <>
             {/* User Stats Card */}
-            <section className="mt-8 glass-card p-6">
+            <section className="mt-8 glass-card p-6 relative overflow-hidden">
+              {/* On Fire sparkles effect */}
+              {isOnFire && (
+                <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                  <div className="fire-particle" style={{ left: '10%', animationDelay: '0s' }} />
+                  <div className="fire-particle" style={{ left: '25%', animationDelay: '0.3s' }} />
+                  <div className="fire-particle" style={{ left: '45%', animationDelay: '0.7s' }} />
+                  <div className="fire-particle" style={{ left: '65%', animationDelay: '0.2s' }} />
+                  <div className="fire-particle" style={{ left: '80%', animationDelay: '0.5s' }} />
+                  <div className="fire-particle" style={{ left: '92%', animationDelay: '0.8s' }} />
+                  <div className="fire-particle-glow" />
+                </div>
+              )}
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                 <div>
                   <p className="text-xs uppercase font-extrabold tracking-widest text-primary">Bienvenido de vuelta</p>
@@ -2635,9 +2648,9 @@ export default function DashboardPage() {
                         })
                         const data = await res.json()
                         if (!res.ok) throw new Error(data.error)
-                        alert(`¡Correo enviado a ${data.sent_to} usuario${data.sent_to !== 1 ? 's' : ''}!`)
+                        toast.success(`¡Correo enviado a ${data.sent_to} usuario${data.sent_to !== 1 ? 's' : ''}!`)
                       } catch (err: any) {
-                        alert(err.message || 'Error al enviar correos.')
+                        toast.error(err.message || 'Error al enviar correos.')
                       } finally {
                         setSendingDailyEmail(false)
                       }
@@ -3169,6 +3182,21 @@ function MatchCard({
           : 'bg-slate-900/60 border-slate-800/80 hover:border-slate-750/80 shadow-primary/5'
       }`}
     >
+      {/* Skeleton loader overlay while saving */}
+      {saving && (
+        <div className="absolute inset-0 z-10 bg-slate-950/60 backdrop-blur-[2px] rounded-3xl flex items-center justify-center">
+          <div className="flex flex-col items-center gap-3">
+            <div className="flex gap-2">
+              <div className="w-10 h-10 rounded-xl bg-slate-800 animate-pulse" />
+              <div className="w-6 h-10 flex items-center justify-center"><span className="text-slate-600 text-xs">vs</span></div>
+              <div className="w-10 h-10 rounded-xl bg-slate-800 animate-pulse" />
+            </div>
+            <div className="h-2 w-24 rounded-full bg-slate-800 animate-pulse" />
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest animate-pulse">Guardando...</span>
+          </div>
+        </div>
+      )}
+
       {/* Top Meta info row */}
       <div className="flex justify-between items-center gap-4 mb-4">
         <div className="flex flex-col gap-0.5">
