@@ -49,8 +49,8 @@ export default function LoginPage() {
   }, [])
 
   useEffect(() => {
-    // Clear any stale Supabase auth data on login page load
-    supabase.auth.signOut()
+    // Sign out cleanly when landing on login page
+    supabase.auth.signOut().catch(() => {})
 
     // Start fading out the intro screen at 3.5s
     const fadeTimer = setTimeout(() => {
@@ -331,10 +331,8 @@ export default function LoginPage() {
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-slate-950/85" />
 
           <div className="relative z-10 flex flex-col items-center text-center px-4 max-w-lg">
-            <div className="w-16 h-16 bg-gradient-to-br from-primary to-secondary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20 mb-4 animate-bounce">
-              <svg className="w-9 h-9 text-slate-950" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
-              </svg>
+            <div className="w-20 h-20 rounded-2xl overflow-hidden shadow-lg shadow-primary/20 mb-4 animate-bounce">
+              <video src="/fifaloading.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover" />
             </div>
             <h2 className="text-[10px] font-black uppercase tracking-[0.25em] text-primary mb-2 animate-intro-text">
               Copa Mundial FIFA 2026
@@ -381,10 +379,8 @@ export default function LoginPage() {
 
         {/* Header and App Logo */}
         <div className="mb-6 text-center">
-          <div className="mx-auto w-14 h-14 bg-gradient-to-br from-primary to-secondary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20 mb-3 animate-pulse">
-            <svg className="w-8 h-8 text-slate-950" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
-            </svg>
+          <div className="mx-auto w-14 h-14 rounded-2xl overflow-hidden shadow-lg shadow-primary/20 mb-3">
+            <video src="/fifaloading.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover" />
           </div>
           <span className="text-[10px] font-black uppercase tracking-widest text-primary">Copa Mundial FIFA 2026</span>
           <h1 className="text-2xl font-black tracking-tight text-white bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent uppercase mt-1">

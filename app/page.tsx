@@ -551,52 +551,43 @@ export default function DashboardPage() {
   useEffect(() => {
     setMounted(true)
 
+    let cancelled = false
+
     const checkSession = async () => {
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-      
-      if (sessionError) {
-        // Clear stale auth data if refresh token is invalid
-        await supabase.auth.signOut()
-        router.push('/login')
-        return
-      }
+      try {
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+        
+        if (cancelled) return
 
-      if (!session) {
-        router.push('/login')
-        return
-      }
-
-      const user = session.user
-      setUserId(user.id)
-      
-      // Extract username from email (e.g. messi10@quiniela.local -> messi10)
-      if (user.email) {
-        setUserEmail(user.email)
-        const namePart = user.email.split('@')[0]
-        setUsername(namePart.charAt(0).toUpperCase() + namePart.slice(1))
-        if (namePart.toLowerCase() === 'admin') {
-          setAdminMode(true)
+        if (sessionError || !session) {
+          router.push('/login')
+          return
         }
-        // Log user login activity
-        logUserLogin(user.id, user.email)
-      }
 
-      await loadMatchesAndPredictions(user.id)
-      setLoading(false)
+        const user = session.user
+        setUserId(user.id)
+        
+        if (user.email) {
+          setUserEmail(user.email)
+          const namePart = user.email.split('@')[0]
+          setUsername(namePart.charAt(0).toUpperCase() + namePart.slice(1))
+          if (namePart.toLowerCase() === 'admin') {
+            setAdminMode(true)
+          }
+          logUserLogin(user.id, user.email)
+        }
+
+        await loadMatchesAndPredictions(user.id)
+        if (!cancelled) setLoading(false)
+      } catch (err) {
+        console.error('Session check failed:', err)
+        if (!cancelled) router.push('/login')
+      }
     }
 
     checkSession()
 
-    // Subscribe to auth updates
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT' || !session) {
-        router.push('/login')
-      }
-    })
-
-    return () => {
-      subscription?.unsubscribe()
-    }
+    return () => { cancelled = true }
   }, [router])
 
   useEffect(() => {
@@ -965,10 +956,8 @@ export default function DashboardPage() {
         {/* Navigation / Header */}
         <header className="flex justify-between items-center py-6 border-b border-slate-900">
           <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-gradient-to-br from-primary to-secondary rounded-xl flex items-center justify-center shadow-lg shadow-primary/15">
-              <svg className="w-5 h-5 text-slate-950" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path>
-              </svg>
+            <div className="w-10 h-10 rounded-xl overflow-hidden shadow-lg shadow-primary/15">
+              <video src="/fifaloading.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover" />
             </div>
             <span className="text-xl font-extrabold tracking-wider bg-gradient-to-r from-primary to-cyan-400 bg-clip-text text-transparent">
               QUINIELA
