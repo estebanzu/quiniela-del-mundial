@@ -554,8 +554,9 @@ export default function DashboardPage() {
       const { data: { session }, error: sessionError } = await supabase.auth.getSession()
       
       if (sessionError) {
-        setError(sessionError.message)
-        setLoading(false)
+        // Clear stale auth data if refresh token is invalid
+        await supabase.auth.signOut()
+        router.push('/login')
         return
       }
 
@@ -2088,8 +2089,9 @@ export default function DashboardPage() {
 
           // Days since last prediction
           const lastPredMatch = [...finishedPreds].reverse()[0]
+          const now = new Date()
           const daysSinceLast = lastPredMatch
-            ? Math.floor((Date.now() - new Date(lastPredMatch.match_date).getTime()) / (1000 * 60 * 60 * 24))
+            ? Math.floor((now.getTime() - new Date(lastPredMatch.match_date).getTime()) / (1000 * 60 * 60 * 24))
             : 0
 
           // Performance over time (group by date, show cumulative points)

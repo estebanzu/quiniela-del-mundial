@@ -49,6 +49,9 @@ export default function LoginPage() {
   }, [])
 
   useEffect(() => {
+    // Clear any stale Supabase auth data on login page load
+    supabase.auth.signOut()
+
     // Start fading out the intro screen at 3.5s
     const fadeTimer = setTimeout(() => {
       setIntroStage('fading')
