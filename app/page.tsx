@@ -5,6 +5,17 @@ import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
 
+const TZ = 'America/Costa_Rica' // UTC-6
+
+// Get YYYY-MM-DD key in the target timezone
+function dateKeyInTZ(d: Date): string {
+  return d.toLocaleDateString('sv-SE', { timeZone: TZ }) // sv-SE gives YYYY-MM-DD format
+}
+
+function todayKeyInTZ(): string {
+  return new Date().toLocaleDateString('sv-SE', { timeZone: TZ })
+}
+
 type Match = {
   id: number
   home_team: string
@@ -371,11 +382,11 @@ export default function DashboardPage() {
 
     const dayMap: Record<string, boolean> = {}
     matches.forEach((m) => {
-      const key = new Date(m.match_date).toISOString().split('T')[0]
+      const key = dateKeyInTZ(new Date(m.match_date))
       dayMap[key] = true
     })
     const sortedKeys = Object.keys(dayMap).sort()
-    const todayKey = new Date().toISOString().split('T')[0]
+    const todayKey = todayKeyInTZ()
 
     let idx = sortedKeys.findIndex(k => k === todayKey)
     if (idx === -1) {
@@ -391,11 +402,11 @@ export default function DashboardPage() {
 
     const dayMap: Record<string, boolean> = {}
     matches.forEach((m) => {
-      const key = new Date(m.match_date).toISOString().split('T')[0]
+      const key = dateKeyInTZ(new Date(m.match_date))
       dayMap[key] = true
     })
     const sortedKeys = Object.keys(dayMap).sort()
-    const todayKey = new Date().toISOString().split('T')[0]
+    const todayKey = todayKeyInTZ()
 
     let idx = sortedKeys.findIndex(k => k === todayKey)
     if (idx === -1) {
@@ -1303,7 +1314,7 @@ export default function DashboardPage() {
 
                 filteredMatches.forEach((m) => {
                   const d = new Date(m.match_date)
-                  const key = d.toISOString().split('T')[0]
+                  const key = dateKeyInTZ(d)
                   if (!dayMap[key]) dayMap[key] = []
                   dayMap[key].push(m)
                 })
@@ -1425,7 +1436,7 @@ export default function DashboardPage() {
 
           matches.forEach((m) => {
             const d = new Date(m.match_date)
-            const key = d.toISOString().split('T')[0]
+            const key = dateKeyInTZ(d)
             if (!dayMap[key]) dayMap[key] = []
             dayMap[key].push(m)
           })
@@ -1439,7 +1450,7 @@ export default function DashboardPage() {
           })
 
           // Find today's tournament day index (default to day closest to today or day 1)
-          const todayKey = new Date().toISOString().split('T')[0]
+          const todayKey = todayKeyInTZ()
           let defaultIdx = scheduleDays.findIndex(d => d.dateKey === todayKey)
           if (defaultIdx === -1) {
             // Find closest future day or fallback to 0
@@ -1535,7 +1546,7 @@ export default function DashboardPage() {
                           <div className="space-y-3">
                             {activeDay.matches.map((match) => {
                               const mDate = new Date(match.match_date)
-                              const mTime = mDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+                              const mTime = mDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: TZ })
                               const isFinished = match.status === 'finished'
 
                               return (
@@ -2086,7 +2097,7 @@ export default function DashboardPage() {
           }
 
           // Days active (from user_logins we don't have here, approximate from predictions)
-          const predDates = new Set(finishedPreds.map(m => new Date(m.match_date).toISOString().split('T')[0]))
+          const predDates = new Set(finishedPreds.map(m => dateKeyInTZ(new Date(m.match_date))))
           const daysActive = predDates.size
 
           // Days since last prediction
@@ -2101,7 +2112,7 @@ export default function DashboardPage() {
           let cumulative = 0
           const dateMap: Record<string, number> = {}
           finishedPreds.forEach(m => {
-            const key = new Date(m.match_date).toISOString().split('T')[0]
+            const key = dateKeyInTZ(new Date(m.match_date))
             dateMap[key] = (dateMap[key] || 0) + (predictions[m.id]?.points || 0)
           })
           Object.keys(dateMap).sort().forEach(date => {
@@ -2880,8 +2891,8 @@ export default function DashboardPage() {
           if (allMissed) medals.push({ icon: '🙈', msg: 'No pegaste ni una en los últimos 3... ¡Pase por sus productos Tosty!' })
 
           // Predicted all matches for today
-          const todayKey = new Date().toISOString().split('T')[0]
-          const todayMatches = matches.filter(m => new Date(m.match_date).toISOString().split('T')[0] === todayKey)
+          const todayKey = todayKeyInTZ()
+          const todayMatches = matches.filter(m => dateKeyInTZ(new Date(m.match_date)) === todayKey)
           const todayAllPredicted = todayMatches.length > 0 && todayMatches.every(m => predictions[m.id])
           if (todayAllPredicted && todayMatches.length > 0) medals.push({ icon: '✅', msg: `¡Todos los partidos de hoy pronosticados! ${todayMatches.length} de ${todayMatches.length}.` })
 
@@ -3030,6 +3041,7 @@ function MatchCard({
     month: 'short',
     hour: '2-digit',
     minute: '2-digit',
+    timeZone: TZ,
   })
 
   // Format date helper to bypass server rendering timezone shifts

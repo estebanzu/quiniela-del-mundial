@@ -52,7 +52,7 @@ export async function GET() {
   try {
     const feeds = [
       { url: 'https://news.google.com/rss/search?q=Mundial%202026%22%20OR%20%22Copa%20Mundial%202026%22%20OR%20%22fifa&hl=en-US&gl=US&ceid=US:en', source: 'Google News' },
-      { url: 'https://www.futbolred.com/rss-news/selecciones-nacionales.xml', source: 'FutbolRed' },
+      { url: 'https://www.espn.com/espn/rss/soccer/news', source: 'ESPN' },
     ]
 
     const results = await Promise.allSettled(
