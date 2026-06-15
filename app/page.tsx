@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
+import NotificationBell from '../components/NotificationBell'
 
 const TZ = 'America/Costa_Rica' // UTC-6
 
@@ -1052,6 +1053,9 @@ export default function DashboardPage() {
                 )}
               </div>
             )}
+
+            {/* Notification Bell */}
+            {userId && <NotificationBell userId={userId} />}
 
             {/* Logout Button */}
             <button
