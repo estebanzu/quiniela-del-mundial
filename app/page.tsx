@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
 import NotificationBell from '../components/NotificationBell'
+import { toBlob } from 'html-to-image'
 
 const TZ = 'America/Costa_Rica' // UTC-6
 
@@ -424,6 +425,68 @@ export default function DashboardPage() {
   const [adminSearch, setAdminSearch] = useState('')
   const [hoveredBar, setHoveredBar] = useState<number | null>(null)
   const [dismissedMatchId, setDismissedMatchId] = useState<number | null>(null)
+  const phasesTableRef = useRef<HTMLDivElement>(null)
+  const [exportingPng, setExportingPng] = useState(false)
+
+  const handleExportPhasesAsPng = useCallback(async () => {
+    if (!phasesTableRef.current || exportingPng) return
+    setExportingPng(true)
+    try {
+      const el = phasesTableRef.current
+
+      // Temporarily override styles for the capture so it looks clean on any background
+      const originalBg = el.style.background
+      const originalPadding = el.style.padding
+      const originalBorderRadius = el.style.borderRadius
+      el.style.background = '#0f172a'
+      el.style.padding = '24px'
+      el.style.borderRadius = '0'
+
+      const blob = await toBlob(el, {
+        backgroundColor: '#0f172a',
+        pixelRatio: 2, // Retina quality
+        cacheBust: true,
+      })
+
+      // Restore original styles
+      el.style.background = originalBg
+      el.style.padding = originalPadding
+      el.style.borderRadius = originalBorderRadius
+
+      if (!blob) throw new Error('Error al generar la imagen.')
+
+      const file = new File([blob], 'quiniela-posiciones.png', { type: 'image/png' })
+
+      // Try Web Share API first (great for mobile → WhatsApp)
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({
+          title: '🏆 Quiniela Mundial — Tabla de Posiciones',
+          text: '¡Mira la tabla de posiciones de la Quiniela del Mundial! ⚽',
+          files: [file],
+        })
+        toast.success('¡Imagen compartida!')
+      } else {
+        // Fallback: download the PNG
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = 'quiniela-posiciones.png'
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+        toast.success('¡Imagen descargada!')
+      }
+    } catch (err: any) {
+      // navigator.share can throw if user cancels — that's okay
+      if (err?.name !== 'AbortError') {
+        console.error('Export PNG error:', err)
+        toast.error('Error al exportar la imagen.')
+      }
+    } finally {
+      setExportingPng(false)
+    }
+  }, [exportingPng])
   const [h2hRival, setH2hRival] = useState('')
   const [changePwCurrent, setChangePwCurrent] = useState('')
   const [changePwNew, setChangePwNew] = useState('')
@@ -571,7 +634,15 @@ export default function DashboardPage() {
         
         if (cancelled) return
 
-        if (sessionError || !session) {
+        if (sessionError) {
+          // Invalid refresh token or other auth error — clear the stale session
+          console.warn('Session error, signing out:', sessionError.message)
+          await supabase.auth.signOut().catch(() => {})
+          router.push('/login')
+          return
+        }
+
+        if (!session) {
           router.push('/login')
           return
         }
@@ -593,13 +664,29 @@ export default function DashboardPage() {
         if (!cancelled) setLoading(false)
       } catch (err) {
         console.error('Session check failed:', err)
+        await supabase.auth.signOut().catch(() => {})
         if (!cancelled) router.push('/login')
       }
     }
 
+    // Listen for auth state changes (token refresh, sign out, etc.)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event) => {
+        if (cancelled) return
+        if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
+          if (event === 'SIGNED_OUT') {
+            router.push('/login')
+          }
+        }
+      }
+    )
+
     checkSession()
 
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+      subscription.unsubscribe()
+    }
   }, [router])
 
   useEffect(() => {
@@ -1810,16 +1897,40 @@ export default function DashboardPage() {
 
         {viewMode === 'phases' && (
           <section className="mt-8 animate-fadeIn">
-            <div className="mb-6">
-              <h3 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-                📊 Tabla de Posiciones por Fases
-              </h3>
-              <p className="text-sm text-slate-400 mt-1">
-                Visualiza el desglose de puntos obtenidos en cada una de las 6 fases del torneo. ¡El ganador de cada fase recibe un trofeo 🏆!
-              </p>
+            <div className="mb-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+              <div>
+                <h3 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                  📊 Tabla de Posiciones por Fases
+                </h3>
+                <p className="text-sm text-slate-400 mt-1">
+                  Visualiza el desglose de puntos obtenidos en cada una de las 6 fases del torneo. ¡El ganador de cada fase recibe un trofeo 🏆!
+                </p>
+              </div>
+              {phaseLeaderboard.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleExportPhasesAsPng}
+                  disabled={exportingPng}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-xs font-bold uppercase tracking-wider hover:bg-emerald-500/20 hover:border-emerald-500/50 transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0 group"
+                >
+                  {exportingPng ? (
+                    <>
+                      <span className="animate-spin h-3.5 w-3.5 border-2 border-emerald-400 border-t-transparent rounded-full"></span>
+                      Exportando…
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4 transition-transform group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V3" />
+                      </svg>
+                      Exportar PNG
+                    </>
+                  )}
+                </button>
+              )}
             </div>
 
-            <div className="glass-card overflow-hidden">
+            <div ref={phasesTableRef} className="glass-card overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
