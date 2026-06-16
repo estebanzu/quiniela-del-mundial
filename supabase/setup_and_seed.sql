@@ -871,19 +871,33 @@ SECURITY DEFINER
 AS $$
 BEGIN
   RETURN QUERY
-  SELECT 
+  SELECT
     split_part(u.email, '@', 1)::text as username,
-    coalesce(sum(CASE WHEN p.match_id >= 1 AND p.match_id <= 72 THEN p.points ELSE 0 END), 0)::bigint as fase1,
-    coalesce(sum(CASE WHEN p.match_id >= 73 AND p.match_id <= 88 THEN p.points ELSE 0 END), 0)::bigint as fase2,
-    coalesce(sum(CASE WHEN p.match_id >= 89 AND p.match_id <= 96 THEN p.points ELSE 0 END), 0)::bigint as fase3,
-    coalesce(sum(CASE WHEN p.match_id >= 97 AND p.match_id <= 100 THEN p.points ELSE 0 END), 0)::bigint as fase4,
-    coalesce(sum(CASE WHEN p.match_id >= 101 AND p.match_id <= 102 THEN p.points ELSE 0 END), 0)::bigint as fase5,
-    coalesce(sum(CASE WHEN p.match_id >= 103 AND p.match_id <= 104 THEN p.points ELSE 0 END), 0)::bigint as fase6,
-    coalesce(sum(p.points), 0)::bigint as total_points
+    (coalesce(sum(CASE WHEN p.match_id >= 1 AND p.match_id <= 72 THEN p.points ELSE 0 END), 0) + coalesce(t.fase1_trivia, 0))::bigint as fase1,
+    (coalesce(sum(CASE WHEN p.match_id >= 73 AND p.match_id <= 88 THEN p.points ELSE 0 END), 0) + coalesce(t.fase2_trivia, 0))::bigint as fase2,
+    (coalesce(sum(CASE WHEN p.match_id >= 89 AND p.match_id <= 96 THEN p.points ELSE 0 END), 0) + coalesce(t.fase3_trivia, 0))::bigint as fase3,
+    (coalesce(sum(CASE WHEN p.match_id >= 97 AND p.match_id <= 100 THEN p.points ELSE 0 END), 0) + coalesce(t.fase4_trivia, 0))::bigint as fase4,
+    (coalesce(sum(CASE WHEN p.match_id >= 101 AND p.match_id <= 102 THEN p.points ELSE 0 END), 0) + coalesce(t.fase5_trivia, 0))::bigint as fase5,
+    (coalesce(sum(CASE WHEN p.match_id >= 103 AND p.match_id <= 104 THEN p.points ELSE 0 END), 0) + coalesce(t.fase6_trivia, 0))::bigint as fase6,
+    (coalesce(sum(p.points), 0) + coalesce(t.total_trivia, 0))::bigint as total_points
   FROM auth.users u
   LEFT JOIN public.predictions p ON u.id = p.user_id
+  LEFT JOIN (
+    SELECT
+      ta.user_id,
+      coalesce(sum(CASE WHEN tq.trivia_date <= '2026-06-27' THEN ta.points ELSE 0 END), 0)::bigint as fase1_trivia,
+      coalesce(sum(CASE WHEN tq.trivia_date >= '2026-06-28' AND tq.trivia_date <= '2026-07-03' THEN ta.points ELSE 0 END), 0)::bigint as fase2_trivia,
+      coalesce(sum(CASE WHEN tq.trivia_date >= '2026-07-04' AND tq.trivia_date <= '2026-07-07' THEN ta.points ELSE 0 END), 0)::bigint as fase3_trivia,
+      coalesce(sum(CASE WHEN tq.trivia_date >= '2026-07-08' AND tq.trivia_date <= '2026-07-12' THEN ta.points ELSE 0 END), 0)::bigint as fase4_trivia,
+      coalesce(sum(CASE WHEN tq.trivia_date >= '2026-07-13' AND tq.trivia_date <= '2026-07-15' THEN ta.points ELSE 0 END), 0)::bigint as fase5_trivia,
+      coalesce(sum(CASE WHEN tq.trivia_date >= '2026-07-16' THEN ta.points ELSE 0 END), 0)::bigint as fase6_trivia,
+      coalesce(sum(ta.points), 0)::bigint as total_trivia
+    FROM public.trivia_answers ta
+    INNER JOIN public.trivia_questions tq ON ta.question_id = tq.id
+    GROUP BY ta.user_id
+  ) t ON u.id = t.user_id
   WHERE u.email LIKE '%@quiniela.local' AND u.email != 'admin@quiniela.local'
-  GROUP BY u.email
+  GROUP BY u.email, t.fase1_trivia, t.fase2_trivia, t.fase3_trivia, t.fase4_trivia, t.fase5_trivia, t.fase6_trivia, t.total_trivia
   ORDER BY total_points DESC, username ASC;
 END;
 $$;
