@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Match, Prediction } from '../lib/types'
 import { tTeam } from '../lib/translations'
-import { MatchChat } from './MatchChat'
 
 function getPointsBadge(prediction: Prediction | undefined, isFinished: boolean) {
   if (!isFinished || !prediction) return null
@@ -45,6 +44,7 @@ export function MatchCard({
   isAdmin = false,
   adminMode = false,
   onMatchUpdate,
+  onOpenChat,
 }: {
   userId: string
   match: Match
@@ -53,6 +53,7 @@ export function MatchCard({
   isAdmin?: boolean
   adminMode?: boolean
   onMatchUpdate?: (match: Match) => Promise<void>
+  onOpenChat: (chatMeta: { id: number; homeTeam: string; awayTeam: string }) => void
 }) {
   const [homeScore, setHomeScore] = useState(prediction?.predicted_home?.toString() ?? '')
   const [awayScore, setAwayScore] = useState(prediction?.predicted_away?.toString() ?? '')
@@ -65,7 +66,6 @@ export function MatchCard({
   const [saving, setSaving] = useState(false)
   const [statusMsg, setStatusMsg] = useState<{ text: string; type: 'success' | 'error' | 'info' | '' }>({ text: '', type: '' })
 
-  const [showChat, setShowChat] = useState(false)
   const [commentCount, setCommentCount] = useState(0)
 
   // Fetch initial comment count
@@ -422,37 +422,23 @@ export function MatchCard({
           </div>
 
           {/* Chat Bubble Toggle Button */}
-          {!adminMode && (
-            <button
-              type="button"
-              onClick={() => setShowChat(!showChat)}
-              className={`relative shrink-0 w-12 h-12 flex items-center justify-center rounded-xl border transition active:scale-90 cursor-pointer ${
-                showChat
-                  ? 'bg-primary/20 border-primary text-primary'
-                  : 'bg-slate-900 border-slate-800 hover:border-slate-750 hover:bg-slate-800 text-slate-350 hover:text-slate-100'
-              }`}
-              title="Comentarios del partido"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
-              </svg>
-              {commentCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.5 min-w-5 h-5 rounded-full text-[9px] font-black bg-cyan-500 text-slate-950 border border-slate-900 flex items-center justify-center animate-bounce">
-                  {commentCount}
-                </span>
-              )}
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => onOpenChat({ id: match.id, homeTeam: match.home_team, awayTeam: match.away_team })}
+            className="relative shrink-0 w-12 h-12 flex items-center justify-center rounded-xl border bg-slate-900 border-slate-800 hover:border-slate-750 hover:bg-slate-800 text-slate-350 hover:text-slate-100 transition active:scale-90 cursor-pointer"
+            title="Comentarios del partido"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+            </svg>
+            {commentCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.5 min-w-5 h-5 rounded-full text-[9px] font-black bg-cyan-500 text-slate-950 border border-slate-900 flex items-center justify-center animate-bounce">
+                {commentCount}
+              </span>
+            )}
+          </button>
         </div>
       </div>
-
-      {showChat && !adminMode && (
-        <MatchChat
-          matchId={match.id}
-          userId={userId}
-          onCommentCountChange={setCommentCount}
-        />
-      )}
 
       {/* Footer Details: Actual Score Display & Status Message */}
       {(isFinished || prediction || statusMsg.text) && (
