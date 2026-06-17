@@ -58,6 +58,38 @@ export function MatchCard({
   const [homeScore, setHomeScore] = useState(prediction?.predicted_home?.toString() ?? '')
   const [awayScore, setAwayScore] = useState(prediction?.predicted_away?.toString() ?? '')
 
+  // 3D tilt and hover flare state
+  const [style, setStyle] = useState<React.CSSProperties>({})
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLFormElement>) => {
+    if (isLocked || adminMode) return
+    const card = e.currentTarget
+    const rect = card.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+    
+    const xc = rect.width / 2
+    const yc = rect.height / 2
+    
+    // Smooth 3D tilt rotation (max ~6 degrees)
+    const rotateX = -(y - yc) / 25
+    const rotateY = (x - xc) / 25
+    
+    setStyle({
+      '--mx': `${x}px`,
+      '--my': `${y}px`,
+      transform: `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`,
+      transition: 'none',
+    } as React.CSSProperties)
+  }
+
+  const handleMouseLeave = () => {
+    setStyle({
+      transform: 'perspective(1000px) rotateX(0deg) rotateY(0deg)',
+      transition: 'transform 0.4s cubic-bezier(0.25, 1, 0.5, 1), border-color 0.3s ease',
+    })
+  }
+
   // Admin inputs state
   const [adminHomeScore, setAdminHomeScore] = useState(match.home_score?.toString() ?? '')
   const [adminAwayScore, setAdminAwayScore] = useState(match.away_score?.toString() ?? '')
@@ -260,16 +292,28 @@ export function MatchCard({
   return (
     <form
       onSubmit={adminMode ? handleAdminSave : handleSave}
-      className={`relative overflow-hidden rounded-3xl p-5 shadow-lg border transition-all duration-300 ${
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      style={style}
+      className={`group relative overflow-hidden rounded-3xl p-5 shadow-lg border transition-all duration-300 ${
         adminMode
           ? 'bg-slate-900/40 border-amber-500/30 shadow-amber-950/5'
           : isFinished
           ? 'bg-slate-900/20 border-slate-900'
           : isLocked
           ? 'bg-slate-900/30 border-slate-850'
-          : 'bg-slate-900/60 border-slate-800/80 hover:border-slate-750/80 shadow-primary/5'
+          : 'bg-slate-900/60 border-slate-800/80 hover:border-slate-700 hover:shadow-cyan-950/20 shadow-primary/5'
       }`}
     >
+      {/* Interactive Hover Light Flare */}
+      {!isLocked && !adminMode && (
+        <div
+          className="pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-0"
+          style={{
+            background: `radial-gradient(circle 180px at var(--mx, 0px) var(--my, 0px), rgba(0, 212, 255, 0.08), transparent 80%)`,
+          }}
+        />
+      )}
       {saving && (
         <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-[4px] z-10 flex flex-col justify-between p-5 animate-pulse select-none">
           {/* Header Skeleton */}

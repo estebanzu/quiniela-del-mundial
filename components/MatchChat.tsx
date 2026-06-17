@@ -18,6 +18,7 @@ interface MatchChatProps {
   onBackToGeneral?: () => void
   currentUsername: string
   usersList?: string[]
+  userProfiles?: Record<string, string>
 }
 
 const getAvatarColor = (name: string) => {
@@ -55,6 +56,7 @@ export function MatchChat({
   onBackToGeneral,
   currentUsername,
   usersList = [],
+  userProfiles = {},
 }: MatchChatProps) {
   const [comments, setComments] = useState<MatchComment[]>([])
   const [newComment, setNewComment] = useState('')
@@ -620,6 +622,10 @@ export function MatchChat({
                 minute: '2-digit',
               })
 
+              const userAvatarType = userProfiles[comment.username.toLowerCase()] || 'initials'
+              const isAnimGold = userAvatarType === 'gold'
+              const isAnimFifa = userAvatarType === 'fifa'
+
               return (
                 <div
                   key={comment.id}
@@ -633,9 +639,21 @@ export function MatchChat({
                 >
                   {/* User Avatar */}
                   <div
-                    className={`w-8.5 h-8.5 shrink-0 rounded-full flex items-center justify-center text-xs font-black select-none ${avatarColor} shadow`}
+                    className={`w-8.5 h-8.5 shrink-0 rounded-full flex items-center justify-center overflow-hidden border select-none shadow ${
+                      isAnimGold
+                        ? 'border-amber-500 bg-slate-950'
+                        : isAnimFifa
+                        ? 'border-cyan-500 bg-slate-950'
+                        : `border-[#202225] bg-slate-900 text-xs font-black ${avatarColor}`
+                    }`}
                   >
-                    {initial}
+                    {isAnimGold ? (
+                      <video src="/avatar-animado.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover" />
+                    ) : isAnimFifa ? (
+                      <video src="/fifaloading.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover" />
+                    ) : (
+                      initial
+                    )}
                   </div>
 
                   {/* Content Body */}

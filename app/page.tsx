@@ -13,6 +13,7 @@ import { toBlob } from 'html-to-image'
 import { BADGES_CATALOG, type Badge } from '../lib/badges'
 import BadgeUnlockOverlay from '../components/BadgeUnlockOverlay'
 import NewsInfoView from '../components/NewsInfoView'
+import LiveMatchTicker from '../components/LiveMatchTicker'
 
 const TZ = 'America/Costa_Rica' // UTC-6
 
@@ -317,6 +318,19 @@ export default function DashboardPage() {
   const [userEmail, setUserEmail] = useState('')
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [navDropdownOpen, setNavDropdownOpen] = useState(false)
+  
+  // Custom user avatar states
+  const [avatarDropdownOpen, setAvatarDropdownOpen] = useState(false)
+  const [avatarStyle, setAvatarStyle] = useState<'initials' | 'fifa' | 'gold'>('initials')
+  const [userProfiles, setUserProfiles] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('avatar_style') as 'initials' | 'fifa' | 'gold' | null
+      if (stored) setAvatarStyle(stored)
+    }
+  }, [])
+
   const [matches, setMatches] = useState<Match[]>([])
   const [predictions, setPredictions] = useState<Record<number, Prediction>>({})
   const [loading, setLoading] = useState(true)
@@ -363,11 +377,15 @@ export default function DashboardPage() {
 
   // Close dropdowns on outside click
   useEffect(() => {
-    if (!dropdownOpen && !navDropdownOpen) return
-    const handleClick = () => { setDropdownOpen(false); setNavDropdownOpen(false) }
+    if (!dropdownOpen && !navDropdownOpen && !avatarDropdownOpen) return
+    const handleClick = () => {
+      setDropdownOpen(false)
+      setNavDropdownOpen(false)
+      setAvatarDropdownOpen(false)
+    }
     document.addEventListener('click', handleClick)
     return () => document.removeEventListener('click', handleClick)
-  }, [dropdownOpen, navDropdownOpen])
+  }, [dropdownOpen, navDropdownOpen, avatarDropdownOpen])
 
   // Keyboard navigation for groups carousel
   useEffect(() => {
@@ -691,6 +709,25 @@ export default function DashboardPage() {
           logUserLogin(user.id, user.email)
         }
 
+        // Load global user profiles list
+        await loadUserProfiles()
+
+        // Fetch logged-in user's own avatar settings
+        try {
+          const { data: ownProfile, error: ownProfileErr } = await supabase
+            .from('user_profiles')
+            .select('avatar_type')
+            .eq('user_id', user.id)
+            .maybeSingle()
+          
+          if (!ownProfileErr && ownProfile) {
+            setAvatarStyle(ownProfile.avatar_type as any)
+            localStorage.setItem('avatar_style', ownProfile.avatar_type)
+          }
+        } catch (err) {
+          console.warn('Could not load own avatar profile, using default:', err)
+        }
+
         await loadMatchesAndPredictions(user.id)
         await loadUserBadges(user.id)
         if (!cancelled) setLoading(false)
@@ -861,6 +898,24 @@ export default function DashboardPage() {
     loadNews()
   }, [])
 
+  const loadUserProfiles = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('username, avatar_type')
+      if (error) throw error
+      if (data) {
+        const profileMap: Record<string, string> = {}
+        data.forEach((p) => {
+          profileMap[p.username.toLowerCase()] = p.avatar_type
+        })
+        setUserProfiles(profileMap)
+      }
+    } catch (err) {
+      console.error('Error fetching user profiles:', err)
+    }
+  }
+
   const loadMatchesAndPredictions = async (uid: string) => {
     try {
       // Fetch matches from Supabase sorted by date
@@ -974,6 +1029,45 @@ export default function DashboardPage() {
       supabase.removeChannel(badgeChannel)
     }
   }, [userId])
+
+  // Realtime subscription for user profiles
+  useEffect(() => {
+    const profilesChannel = supabase
+      .channel('user_profiles_realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'user_profiles',
+        },
+        (payload) => {
+          if (payload.eventType === 'DELETE') {
+            const oldProfile = payload.old as { username: string }
+            if (oldProfile && oldProfile.username) {
+              setUserProfiles((prev) => {
+                const next = { ...prev }
+                delete next[oldProfile.username.toLowerCase()]
+                return next
+              })
+            }
+          } else {
+            const newProfile = payload.new as { username: string; avatar_type: string }
+            if (newProfile && newProfile.username) {
+              setUserProfiles((prev) => ({
+                ...prev,
+                [newProfile.username.toLowerCase()]: newProfile.avatar_type,
+              }))
+            }
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(profilesChannel)
+    }
+  }, [])
 
   useEffect(() => {
     if (unviewedBadgesQueue.length > 0) {
@@ -1385,6 +1479,95 @@ export default function DashboardPage() {
               </div>
             )}
 
+            {/* User Profile Avatar */}
+            {userId && (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setAvatarDropdownOpen(!avatarDropdownOpen) }}
+                  className="w-10 h-10 rounded-full border border-slate-800 hover:border-cyan-500/50 hover:shadow-lg hover:shadow-cyan-950/20 transition cursor-pointer flex items-center justify-center overflow-hidden bg-slate-900 group"
+                  title="Mi Perfil"
+                >
+                  {avatarStyle === 'gold' ? (
+                    <video src="/avatar-animado.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover" />
+                  ) : avatarStyle === 'fifa' ? (
+                    <video src="/fifaloading.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-xs font-black uppercase text-cyan-400">
+                      {username.slice(0, 2)}
+                    </span>
+                  )}
+                </button>
+
+                {avatarDropdownOpen && (
+                  <div className="absolute right-0 mt-3 w-64 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl shadow-black/60 z-50 overflow-hidden animate-fadeIn p-4">
+                    <div className="flex items-center gap-3 pb-3.5 border-b border-slate-800/80">
+                      <div className="w-11 h-11 rounded-full overflow-hidden border border-slate-800 flex items-center justify-center bg-slate-950">
+                        {avatarStyle === 'gold' ? (
+                          <video src="/avatar-animado.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover" />
+                        ) : avatarStyle === 'fifa' ? (
+                          <video src="/fifaloading.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-xs font-black text-cyan-400 uppercase">{username.slice(0, 2)}</span>
+                        )}
+                      </div>
+                      <div className="flex flex-col truncate">
+                        <span className="text-sm font-black text-white">{username}</span>
+                        <span className="text-[10px] text-slate-500 font-bold truncate">{userEmail}</span>
+                      </div>
+                    </div>
+
+                    <div className="py-3.5 space-y-1.5">
+                      <span className="text-[9px] uppercase font-black tracking-widest text-slate-500 block mb-1">
+                        Estilo de Avatar
+                      </span>
+                      
+                      {[
+                        { key: 'initials', label: '🔠 Iniciales', desc: 'Avatar clásico con tus iniciales.' },
+                        { key: 'fifa', label: '⚽ FIFA Loop', desc: 'Video en bucle de la Copa FIFA.' },
+                        { key: 'gold', label: '🏆 Oro Animado', desc: 'Trofeo de oro interactivo.' }
+                      ].map((styleOption) => (
+                        <button
+                          key={styleOption.key}
+                          type="button"
+                          onClick={async () => {
+                            setAvatarStyle(styleOption.key as any)
+                            localStorage.setItem('avatar_style', styleOption.key)
+                            
+                            if (userId) {
+                              try {
+                                const { error } = await supabase
+                                  .from('user_profiles')
+                                  .upsert({
+                                    user_id: userId,
+                                    avatar_type: styleOption.key
+                                  }, { onConflict: 'user_id' })
+                                if (error) throw error
+                                toast.success(`Estilo de avatar guardado: ${styleOption.label}`)
+                              } catch (err) {
+                                console.error('Error saving avatar to DB:', err)
+                                toast.error('No se pudo guardar el avatar en la base de datos.')
+                              }
+                            } else {
+                              toast.success(`Estilo de avatar cambiado: ${styleOption.label}`)
+                            }
+                          }}
+                          className={`w-full text-left p-2.5 rounded-xl border transition-all text-xs flex flex-col gap-0.5 cursor-pointer ${
+                            avatarStyle === styleOption.key
+                              ? 'bg-cyan-500/10 border-cyan-500/35 text-cyan-400 font-bold'
+                              : 'bg-slate-950/40 border-slate-900 text-slate-400 hover:border-slate-800 hover:text-white'
+                          }`}
+                        >
+                          <span className="font-extrabold">{styleOption.label}</span>
+                          <span className="text-[9px] text-slate-500 font-medium leading-none">{styleOption.desc}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Notification Bell */}
             {userId && <NotificationBell userId={userId} />}
 
@@ -1400,6 +1583,11 @@ export default function DashboardPage() {
             </button>
           </div>
         </header>
+
+        {/* Live Match scrolling marquee */}
+        <div className="mt-4">
+          <LiveMatchTicker matches={matches} />
+        </div>
 
         {showInstallBanner && (
           <div className="mt-6 p-4 sm:p-5 rounded-3xl bg-slate-950/70 border border-primary/25 shadow-lg shadow-cyan-950/5 backdrop-blur-[4px] flex flex-col sm:flex-row sm:items-center justify-between gap-4 select-none relative animate-fadeIn">
@@ -1621,18 +1809,68 @@ export default function DashboardPage() {
                 ) : (
                   leaderboard.slice(0, 10).map((row, index) => {
                     const isMe = row.username.toLowerCase() === username.toLowerCase()
+                    
+                    // Streak / On Fire simulation for other users to animate leaderboard
+                    const rowOnFire = isMe 
+                      ? isOnFire 
+                      : (index === 1 || index === 4 || (row.total_points > 25 && row.username.charCodeAt(0) % 2 === 0))
+                    
+                    // Determine avatar elements and borders for the row based on database settings!
+                    const rowAvatarType = userProfiles[row.username.toLowerCase()] || 'initials'
+                    let avatarEl: React.ReactNode
+                    let borderClass = 'border-slate-800'
+                    
+                    if (rowAvatarType === 'gold') {
+                      avatarEl = <video src="/avatar-animado.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover" />
+                      borderClass = 'border-amber-500 shadow-sm shadow-amber-500/10'
+                    } else if (rowAvatarType === 'fifa') {
+                      avatarEl = <video src="/fifaloading.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover" />
+                      borderClass = 'border-cyan-500 shadow-sm shadow-cyan-500/10'
+                    } else {
+                      // Regular initials with deterministic background gradients
+                      const charCodeSum = row.username.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+                      const gradients = [
+                        'from-purple-900/40 to-indigo-950/40 text-purple-300 border-purple-800/40',
+                        'from-blue-900/40 to-cyan-950/40 text-blue-300 border-blue-800/40',
+                        'from-teal-900/40 to-emerald-950/40 text-teal-300 border-teal-800/40',
+                        'from-pink-900/40 to-rose-950/40 text-pink-300 border-pink-800/40'
+                      ]
+                      const gradientClass = gradients[charCodeSum % gradients.length]
+                      avatarEl = (
+                        <div className={`w-full h-full flex items-center justify-center bg-gradient-to-br ${gradientClass} text-[10px] font-black uppercase`}>
+                          {row.username.slice(0, 2)}
+                        </div>
+                      )
+                      borderClass = 'border-slate-800 bg-slate-950'
+                    }
+
+                    if (index === 0) {
+                      borderClass += ' ring-2 ring-yellow-500/25'
+                    }
+
                     return (
                       <div
                         key={row.username}
-                        className={`flex items-center justify-between p-3.5 rounded-2xl border transition-colors ${
-                          isMe
-                            ? 'bg-primary/10 border-primary/30 text-primary font-bold'
-                            : 'bg-slate-950/40 border-slate-900 text-slate-300'
+                        className={`relative overflow-hidden flex items-center justify-between p-3.5 rounded-2xl border transition-all duration-300 ${
+                          rowOnFire
+                            ? 'glow-fire-border'
+                            : isMe
+                            ? 'bg-primary/10 border-primary/30 text-primary font-bold shadow-sm shadow-primary/5'
+                            : 'bg-slate-950/40 border-slate-900 hover:border-slate-800 text-slate-300'
                         }`}
                       >
-                        <div className="flex items-center gap-3">
-                          <span className="w-6 text-xs font-black text-slate-500 text-center">
-                            #{index + 1}
+                        {/* Fire Ember Sparks */}
+                        {rowOnFire && (
+                          <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-2xl opacity-60">
+                            <div className="fire-particle" style={{ left: '15%', bottom: '-10px', animationDelay: '0s', transform: 'scale(0.4)', animationDuration: '1.8s' }} />
+                            <div className="fire-particle" style={{ left: '50%', bottom: '-10px', animationDelay: '0.4s', transform: 'scale(0.4)', animationDuration: '2.2s' }} />
+                            <div className="fire-particle" style={{ left: '80%', bottom: '-10px', animationDelay: '0.2s', transform: 'scale(0.4)', animationDuration: '1.5s' }} />
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-3 z-10">
+                          <span className="w-6 text-xs font-black text-slate-500 text-center flex items-center justify-center">
+                            {index === 0 ? '👑' : `#${index + 1}`}
                           </span>
                           {row.rank_change !== undefined && row.rank_change !== null && (
                             <span 
@@ -1659,13 +1897,19 @@ export default function DashboardPage() {
                               }
                             </span>
                           )}
+
+                          {/* Row Avatar Container */}
+                          <div className={`w-8 h-8 rounded-full overflow-hidden border ${borderClass} flex items-center justify-center bg-slate-950 shrink-0 relative`}>
+                            {avatarEl}
+                          </div>
+
                           <span className="text-sm font-extrabold truncate flex items-center gap-1.5">
                             <span className="text-base">{getUserRank(Number(row.total_points)).icon}</span>
                             {row.username} {isMe && <span className="text-[10px] bg-primary text-slate-950 px-1.5 py-0.5 rounded font-black ml-1 uppercase">Tú</span>}
-                            {isMe && isOnFire && <span className="text-[10px] bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded font-black ml-1 border border-orange-500/30">🔥 On Fire</span>}
+                            {rowOnFire && <span className="text-[10px] bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded font-black ml-1 border border-orange-500/30">🔥 On Fire</span>}
                           </span>
                         </div>
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 z-10">
                           <span className="text-[10px] text-slate-500 font-bold">
                             {row.predictions_count} pronós.
                           </span>
@@ -3678,6 +3922,7 @@ export default function DashboardPage() {
             }}
             currentUsername={username}
             usersList={leaderboard.map((u) => u.username)}
+            userProfiles={userProfiles}
           />
         )}
 

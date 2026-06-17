@@ -325,3 +325,21 @@ svg {
   animation: notification-item-enter 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+/* Glowing leaderboard row border & background for streaking users */
+.glow-fire-border {
+  border-color: rgba(249, 115, 22, 0.45) !important;
+  box-shadow: 0 0 15px rgba(249, 115, 22, 0.12), inset 0 0 12px rgba(249, 115, 22, 0.04) !important;
+  background: linear-gradient(90deg, rgba(249, 115, 22, 0.08) 0%, rgba(26, 77, 143, 0.08) 100%) !important;
+}
+
+/* Custom Live Match Ticker marquee speeds and control */
+.ticker-marquee {
+  display: flex;
+  width: max-content;
+  animation: marquee-left 45s linear infinite;
+}
+
+.ticker-marquee:hover {
+  animation-play-state: paused;
+}
+
