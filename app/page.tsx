@@ -10,6 +10,8 @@ import LiveMatchesView from '../components/LiveMatchesView'
 import { MatchCard } from '../components/MatchCard'
 import { MatchChat } from '../components/MatchChat'
 import { toBlob } from 'html-to-image'
+import { BADGES_CATALOG, type Badge } from '../lib/badges'
+import BadgeUnlockOverlay from '../components/BadgeUnlockOverlay'
 
 const TZ = 'America/Costa_Rica' // UTC-6
 
@@ -337,7 +339,7 @@ export default function DashboardPage() {
     total_points: number;
   }[]>([])
   const [news, setNews] = useState<any[]>([])
-  const [viewMode, setViewMode] = useState<'predictions' | 'schedule' | 'groups' | 'phases' | 'h2h' | 'stats' | 'trivia' | 'live_matches' | 'admin'>('predictions')
+  const [viewMode, setViewMode] = useState<'predictions' | 'schedule' | 'groups' | 'phases' | 'h2h' | 'stats' | 'trivia' | 'live_matches' | 'badges' | 'admin'>('predictions')
   const [activeGroupIndex, setActiveGroupIndex] = useState(0)
   const [activeScheduleDayIndex, setActiveScheduleDayIndex] = useState(0)
   const [activePredictionsDayIndex, setActivePredictionsDayIndex] = useState(0)
@@ -350,6 +352,13 @@ export default function DashboardPage() {
   const [isIOS, setIsIOS] = useState(false)
   const [isSafari, setIsSafari] = useState(false)
   const [showIOSInstructions, setShowIOSInstructions] = useState(false)
+
+  // Gamification badges states
+  const [unlockedBadges, setUnlockedBadges] = useState<string[]>([])
+  const [unviewedBadgesQueue, setUnviewedBadgesQueue] = useState<Badge[]>([])
+  const [celebratingBadge, setCelebratingBadge] = useState<Badge | null>(null)
+  const [badgeFilterTier, setBadgeFilterTier] = useState<'all' | 'bronze' | 'silver' | 'gold' | 'platinum'>('all')
+  const [badgeFilterCategory, setBadgeFilterCategory] = useState<'all' | 'predictions' | 'trivia' | 'chat' | 'consistency'>('all')
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -682,6 +691,7 @@ export default function DashboardPage() {
         }
 
         await loadMatchesAndPredictions(user.id)
+        await loadUserBadges(user.id)
         if (!cancelled) setLoading(false)
       } catch (err) {
         console.error('Session check failed:', err)
@@ -901,6 +911,95 @@ export default function DashboardPage() {
       console.error(err)
       setError(err.message || 'Error al cargar los partidos de la base de datos.')
     }
+  }
+
+  const loadUserBadges = async (uid: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('user_badges')
+        .select('*')
+        .eq('user_id', uid)
+
+      if (error) throw error
+
+      if (data) {
+        const keys = data.map((b: any) => b.badge_key)
+        setUnlockedBadges(keys)
+
+        const unviewed = data
+          .filter((b: any) => !b.is_viewed)
+          .map((b: any) => BADGES_CATALOG.find(cat => cat.key === b.badge_key))
+          .filter(Boolean) as Badge[]
+        
+        setUnviewedBadgesQueue(unviewed)
+      }
+    } catch (err) {
+      console.error('Error fetching user badges:', err)
+    }
+  }
+
+  // Realtime subscription for badges
+  useEffect(() => {
+    if (!userId) return
+
+    const badgeChannel = supabase
+      .channel(`user_badges_realtime:${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'user_badges',
+          filter: `user_id=eq.${userId}`
+        },
+        (payload) => {
+          const newBadgeKey = payload.new.badge_key
+          const badgeObj = BADGES_CATALOG.find(b => b.key === newBadgeKey)
+          if (badgeObj) {
+            setUnlockedBadges((prev) => {
+              if (prev.includes(newBadgeKey)) return prev
+              return [...prev, newBadgeKey]
+            })
+            setUnviewedBadgesQueue((prev) => {
+              if (prev.some(b => b.key === newBadgeKey)) return prev
+              return [...prev, badgeObj]
+            })
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(badgeChannel)
+    }
+  }, [userId])
+
+  useEffect(() => {
+    if (unviewedBadgesQueue.length > 0) {
+      setCelebratingBadge(unviewedBadgesQueue[0])
+    } else {
+      setCelebratingBadge(null)
+    }
+  }, [unviewedBadgesQueue])
+
+  const handleCloseBadgeOverlay = async () => {
+    if (unviewedBadgesQueue.length === 0) return
+
+    const currentBadge = unviewedBadgesQueue[0]
+    
+    if (userId) {
+      try {
+        await supabase
+          .from('user_badges')
+          .update({ is_viewed: true })
+          .eq('user_id', userId)
+          .eq('badge_key', currentBadge.key)
+      } catch (err) {
+        console.error('Failed to mark badge as viewed:', err)
+      }
+    }
+
+    setUnviewedBadgesQueue(prev => prev.slice(1))
   }
 
   const handleSyncMatches = async () => {
@@ -1345,7 +1444,7 @@ export default function DashboardPage() {
             onClick={(e) => { e.stopPropagation(); setNavDropdownOpen(!navDropdownOpen) }}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-white hover:border-slate-700 transition text-sm font-bold cursor-pointer"
           >
-            <span>{viewMode === 'predictions' ? '🔮 Mis Pronósticos' : viewMode === 'schedule' ? '📅 Calendario' : viewMode === 'groups' ? '🏆 Grupos del Mundial' : viewMode === 'phases' ? '📊 Tabla por Fases' : viewMode === 'h2h' ? '🥊 Cara a Cara' : viewMode === 'stats' ? '📈 Mis Estadísticas' : viewMode === 'trivia' ? '🧠 Trivia Diaria' : viewMode === 'live_matches' ? '⚡ Partidos en Vivo' : '🔧 Panel Admin'}</span>
+            <span>{viewMode === 'predictions' ? '🔮 Mis Pronósticos' : viewMode === 'schedule' ? '📅 Calendario' : viewMode === 'groups' ? '🏆 Grupos del Mundial' : viewMode === 'phases' ? '📊 Tabla por Fases' : viewMode === 'h2h' ? '🥊 Cara a Cara' : viewMode === 'stats' ? '📈 Mis Estadísticas' : viewMode === 'trivia' ? '🧠 Trivia Diaria' : viewMode === 'live_matches' ? '⚡ Partidos en Vivo' : viewMode === 'badges' ? '🏆 Insignias' : '🔧 Panel Admin'}</span>
             <svg className={`w-3 h-3 transition-transform ${navDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7"></path>
             </svg>
@@ -1362,6 +1461,7 @@ export default function DashboardPage() {
                 { key: 'stats' as const, label: '📈 Mis Estadísticas' },
                 { key: 'trivia' as const, label: '🧠 Trivia Diaria' },
                 { key: 'live_matches' as const, label: '⚡ Partidos en Vivo' },
+                { key: 'badges' as const, label: '🏆 Colección de Insignias' },
               ].map((item) => (
                 <button
                   key={item.key}
@@ -2686,6 +2786,214 @@ export default function DashboardPage() {
           />
         )}
 
+        {viewMode === 'badges' && (() => {
+          // Calculate stats
+          const totalUnlocked = BADGES_CATALOG.filter(b => unlockedBadges.includes(b.key)).length
+          const percent = Math.round((totalUnlocked / BADGES_CATALOG.length) * 100)
+          
+          const bronzeCount = BADGES_CATALOG.filter(b => b.tier === 'bronze' && unlockedBadges.includes(b.key)).length
+          const silverCount = BADGES_CATALOG.filter(b => b.tier === 'silver' && unlockedBadges.includes(b.key)).length
+          const goldCount = BADGES_CATALOG.filter(b => b.tier === 'gold' && unlockedBadges.includes(b.key)).length
+          const platCount = BADGES_CATALOG.filter(b => b.tier === 'platinum' && unlockedBadges.includes(b.key)).length
+
+          // Filter catalog
+          const filteredBadges = BADGES_CATALOG.filter(b => {
+            const matchesTier = badgeFilterTier === 'all' || b.tier === badgeFilterTier
+            const matchesCategory = badgeFilterCategory === 'all' || b.category === badgeFilterCategory
+            return matchesTier && matchesCategory
+          })
+
+          return (
+            <section className="mt-8 animate-fadeIn text-left">
+              {/* Header section */}
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6 mb-8">
+                <div>
+                  <h3 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                    🏆 Colección de Insignias
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Fomenta la gamificación completando hitos en pronósticos, trivia diaria, chat y consistencia.
+                  </p>
+                </div>
+
+                {/* Progress Card */}
+                <div className="glass-card p-4 border border-slate-800/80 shadow-xl min-w-[240px] flex flex-col gap-2">
+                  <div className="flex justify-between items-baseline text-xs">
+                    <span className="font-bold text-slate-400">PROGRESO TOTAL</span>
+                    <span className="font-black text-white">{totalUnlocked} / 50 ({percent}%)</span>
+                  </div>
+                  <div className="w-full h-3 rounded-full bg-slate-950 overflow-hidden border border-slate-900">
+                    <div 
+                      className="h-full bg-gradient-to-r from-primary to-blue-500 rounded-full transition-all duration-500" 
+                      style={{ width: `${percent}%` }}
+                    />
+                  </div>
+                  <div className="grid grid-cols-4 gap-1 mt-1 text-[10px] text-center font-bold">
+                    <div className="text-amber-500 bg-amber-950/20 py-0.5 rounded">🥉 {bronzeCount}</div>
+                    <div className="text-slate-400 bg-slate-850/30 py-0.5 rounded">🥈 {silverCount}</div>
+                    <div className="text-yellow-500 bg-yellow-950/20 py-0.5 rounded">🥇 {goldCount}</div>
+                    <div className="text-cyan-400 bg-cyan-950/20 py-0.5 rounded">💎 {platCount}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Filters */}
+              <div className="flex flex-col md:flex-row gap-4 mb-6">
+                {/* Tiers filter */}
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { key: 'all', label: 'Todos los Rangos' },
+                    { key: 'bronze', label: '🥉 Bronce' },
+                    { key: 'silver', label: '🥈 Plata' },
+                    { key: 'gold', label: '🥇 Oro' },
+                    { key: 'platinum', label: '💎 Platino' }
+                  ].map(item => (
+                    <button
+                      key={item.key}
+                      onClick={() => setBadgeFilterTier(item.key as any)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-extrabold cursor-pointer border transition-all duration-150 ${
+                        badgeFilterTier === item.key
+                          ? 'bg-primary text-slate-950 border-primary shadow-md shadow-cyan-950/20'
+                          : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Categories filter */}
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { key: 'all', label: 'Todas las Categorías' },
+                    { key: 'predictions', label: '🔮 Pronósticos' },
+                    { key: 'trivia', label: '🧠 Trivia' },
+                    { key: 'chat', label: '💬 Chat' },
+                    { key: 'consistency', label: '📅 Asistencia' }
+                  ].map(item => (
+                    <button
+                      key={item.key}
+                      onClick={() => setBadgeFilterCategory(item.key as any)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-extrabold cursor-pointer border transition-all duration-150 ${
+                        badgeFilterCategory === item.key
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-950/20'
+                          : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Grid */}
+              {filteredBadges.length === 0 ? (
+                <div className="text-center py-16 text-slate-500 italic glass-card border border-slate-900">
+                  Ninguna insignia coincide con los filtros seleccionados.
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4.5">
+                  {filteredBadges.map(badge => {
+                    const isUnlocked = unlockedBadges.includes(badge.key)
+                    
+                    // Style maps
+                    const tierStyles = {
+                      bronze: {
+                        border: 'border-amber-700/30',
+                        bg: 'bg-amber-950/10 backdrop-blur-xs',
+                        glow: 'shadow-[0_0_10px_rgba(180,83,9,0.08)]',
+                        label: 'bg-amber-900/20 text-amber-400 border-amber-800/30',
+                        badgeRing: 'bg-amber-950/30 border-amber-900/30 text-amber-500',
+                      },
+                      silver: {
+                        border: 'border-slate-500/25',
+                        bg: 'bg-slate-900/20 backdrop-blur-xs',
+                        glow: 'shadow-[0_0_10px_rgba(148,163,184,0.05)]',
+                        label: 'bg-slate-800/25 text-slate-300 border-slate-700/25',
+                        badgeRing: 'bg-slate-800/30 border-slate-700/30 text-slate-300',
+                      },
+                      gold: {
+                        border: 'border-yellow-500/35',
+                        bg: 'bg-yellow-950/10 backdrop-blur-xs',
+                        glow: 'shadow-[0_0_15px_rgba(234,179,8,0.12)]',
+                        label: 'bg-yellow-900/15 text-yellow-400 border-yellow-800/20',
+                        badgeRing: 'bg-yellow-950/35 border-yellow-600/30 text-yellow-500',
+                      },
+                      platinum: {
+                        border: 'border-cyan-500/40',
+                        bg: 'bg-gradient-to-br from-cyan-950/15 to-purple-950/10 backdrop-blur-xs',
+                        glow: 'shadow-[0_0_18px_rgba(6,182,212,0.18)]',
+                        label: 'bg-cyan-950/25 text-cyan-400 border-cyan-850/30',
+                        badgeRing: 'bg-cyan-950/40 border-cyan-500/30 text-cyan-400',
+                      }
+                    }
+
+                    const s = tierStyles[badge.tier]
+
+                    if (isUnlocked) {
+                      return (
+                        <div 
+                          key={badge.key}
+                          className={`glass-card p-4.5 border flex flex-col items-center justify-between text-center relative transition-all duration-300 hover:scale-[1.03] select-none ${s.border} ${s.bg} ${s.glow}`}
+                          title={`${badge.name}: ${badge.description}`}
+                        >
+                          <span className={`text-[8px] uppercase tracking-widest font-black px-2 py-0.5 rounded-full border mb-3 select-none ${s.label}`}>
+                            {badge.tier}
+                          </span>
+                          
+                          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-3xl mb-3 shadow border ${s.badgeRing}`}>
+                            {badge.icon}
+                          </div>
+
+                          <div className="min-h-[48px] flex flex-col justify-center">
+                            <h4 className="text-xs font-black text-white leading-tight tracking-tight">
+                              {badge.name}
+                            </h4>
+                            <p className="text-[9px] text-slate-400 font-medium leading-normal mt-1 max-w-[130px] mx-auto select-text">
+                              {badge.description}
+                            </p>
+                          </div>
+                        </div>
+                      )
+                    } else {
+                      // Locked Badge View
+                      return (
+                        <div 
+                          key={badge.key}
+                          className="glass-card p-4.5 border border-slate-900 bg-slate-950/30 flex flex-col items-center justify-between text-center relative opacity-45 hover:opacity-80 transition-all duration-300 select-none group cursor-help"
+                        >
+                          <span className="text-[8px] uppercase tracking-widest font-black px-2 py-0.5 rounded-full bg-slate-900/60 text-slate-500 border border-slate-850 mb-3 select-none">
+                            Bloqueada
+                          </span>
+                          
+                          {/* Locked icon ring */}
+                          <div className="w-14 h-14 rounded-2xl bg-slate-900/40 border border-slate-850 flex items-center justify-center text-3xl mb-3 relative">
+                            <span className="filter grayscale blur-[1px] select-none">{badge.icon}</span>
+                            {/* Lock Overlay */}
+                            <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-slate-950 border border-slate-850 flex items-center justify-center text-[10px] text-slate-400 shadow">
+                              🔒
+                            </div>
+                          </div>
+
+                          <div className="min-h-[48px] flex flex-col justify-center">
+                            <h4 className="text-xs font-bold text-slate-400 group-hover:text-slate-300 leading-tight tracking-tight">
+                              {badge.name}
+                            </h4>
+                            {/* Shows instruction */}
+                            <p className="text-[9px] text-slate-500 font-semibold group-hover:text-slate-400 leading-normal mt-1 max-w-[130px] mx-auto">
+                              REQUISITO: {badge.description}
+                            </p>
+                          </div>
+                        </div>
+                      )
+                    }
+                  })}
+                </div>
+              )}
+            </section>
+          )
+        })()}
+
         {viewMode === 'admin' && (
           <section className="mt-8 animate-fadeIn">
             <div>
@@ -3437,6 +3745,12 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
+
+        {/* Badge celebration overlay */}
+        <BadgeUnlockOverlay
+          badge={celebratingBadge}
+          onClose={handleCloseBadgeOverlay}
+        />
 
       </div>
     </div>
