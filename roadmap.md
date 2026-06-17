@@ -94,6 +94,16 @@ timeline
 1.  **Mini-Ligas / Grupos Privados:**
     *   Permitir a los usuarios crear ligas cerradas (por ejemplo: "Colegas de Oficina", "Familia Calderón", etc.) mediante un código de invitación único.
     *   Cada grupo privado tendrá su propia clasificación filtrada en tiempo real.
+2.  **Duelos Directos / Cara a Cara (H2H):**
+    *   Permitir a los usuarios retar directamente a otro amigo en un partido específico mediante duelos amistosos.
+3.  **Menciones en Chat (`@menciones`):**
+    *   Envío de notificaciones en tiempo real cuando un usuario sea mencionado en el chat de un partido o del lobby.
+4.  **Sabiduría de la Masa (Crowd Wisdom):**
+    *   Visualizar porcentajes agregados de predicciones de la comunidad antes de cada partido para conocer la tendencia general.
+5.  **Tendencia de Posición en Leaderboard:**
+    *   Indicadores visuales (`▲` / `▼`) que muestren el movimiento de puestos de cada usuario respecto a la jornada anterior.
+6.  **Comodines de Puntuación Doble (Jokers):**
+    *   Soporte para 3 comodines por torneo para que el usuario elija duplicar los puntos en partidos estratégicos.
 
 ---
 
