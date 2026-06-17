@@ -125,3 +125,81 @@ exception
     raise notice 'No se pudo agregar a la publicación supabase_realtime directamente. Por favor habilítalo desde el panel.';
 end;
 $$;
+
+-- ==========================================
+-- Trigger Function: generate_comment_mentions
+-- Automatically scans comments for @username mentions,
+-- resolves their user_id, and inserts an in-app notification.
+-- ==========================================
+create or replace function public.generate_comment_mentions()
+returns trigger
+language plpgsql
+security definer
+as $$
+declare
+  r record;
+  target_user_id uuid;
+  mentioned_uname text;
+  channel_name text;
+begin
+  -- Fast check: if the comment does not contain '@', skip regex search
+  if position('@' in new.comment) = 0 then
+    return new;
+  end if;
+
+  -- Resolve channel name based on where it was inserted
+  if tg_table_name = 'lobby_comments' then
+    channel_name := '#general';
+  else
+    -- Resolve match teams
+    select (m.home_team || ' vs ' || m.away_team) into channel_name
+    from public.matches m
+    where m.id = new.match_id;
+    channel_name := '#' || coalesce(channel_name, 'partido');
+  end if;
+
+  -- Find all distinct mentions using regular expression
+  for r in 
+    select distinct regexp_replace(m[1], '^@', '') as uname
+    from (
+      select regexp_matches(new.comment, '@([a-zA-Z0-9_\-\.]+)', 'g') as m
+    ) sub
+  loop
+    mentioned_uname := r.uname;
+    
+    -- Find target user ID matching the email prefix
+    select id into target_user_id
+    from auth.users
+    where lower(split_part(email, '@', 1)) = lower(mentioned_uname)
+    limit 1;
+
+    -- If target user exists and is not the sender, create a notification
+    if target_user_id is not null and target_user_id != new.user_id then
+      insert into public.notifications (user_id, type, title, body, match_id)
+      values (
+        target_user_id,
+        'chat_mention',
+        '💬 Mención en ' || channel_name,
+        new.username || ': "' || substring(new.comment from 1 for 80) || '"',
+        case when tg_table_name = 'lobby_comments' then null else new.match_id end
+      );
+    end if;
+  end loop;
+
+  return new;
+end;
+$$;
+
+-- Trigger for match_comments
+drop trigger if exists trigger_generate_match_comment_mentions on public.match_comments;
+create trigger trigger_generate_match_comment_mentions
+after insert on public.match_comments
+for each row
+execute procedure public.generate_comment_mentions();
+
+-- Trigger for lobby_comments
+drop trigger if exists trigger_generate_lobby_comment_mentions on public.lobby_comments;
+create trigger trigger_generate_lobby_comment_mentions
+after insert on public.lobby_comments
+for each row
+execute procedure public.generate_comment_mentions();

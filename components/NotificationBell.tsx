@@ -41,6 +41,7 @@ function getNotificationIcon(type: string): string {
     case 'streak_broken': return '💔'
     case 'rank_change': return '📈'
     case 'phase_complete': return '🏆'
+    case 'chat_mention': return '💬'
     default: return '🔔'
   }
 }
@@ -51,6 +52,7 @@ function getNotificationAccent(type: string): string {
     case 'streak_broken': return 'border-l-rose-500'
     case 'rank_change': return 'border-l-emerald-500'
     case 'phase_complete': return 'border-l-amber-500'
+    case 'chat_mention': return 'border-l-indigo-500'
     default: return 'border-l-primary'
   }
 }
