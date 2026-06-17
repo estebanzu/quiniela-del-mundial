@@ -62,6 +62,7 @@ export function MatchCard({
   const [adminHomeScore, setAdminHomeScore] = useState(match.home_score?.toString() ?? '')
   const [adminAwayScore, setAdminAwayScore] = useState(match.away_score?.toString() ?? '')
   const [adminStatus, setAdminStatus] = useState<Match['status']>(match.status)
+  const [scoreManuallySet, setScoreManuallySet] = useState(match.score_manually_set ?? false)
 
   const [saving, setSaving] = useState(false)
   const [statusMsg, setStatusMsg] = useState<{ text: string; type: 'success' | 'error' | 'info' | '' }>({ text: '', type: '' })
@@ -99,12 +100,14 @@ export function MatchCard({
     setAdminHomeScore(match.home_score?.toString() ?? '')
     setAdminAwayScore(match.away_score?.toString() ?? '')
     setAdminStatus(match.status)
+    setScoreManuallySet(match.score_manually_set ?? false)
   }, [match])
 
   const matchDate = new Date(match.match_date)
   const isFinished = match.status === 'finished'
-  // locked if less than 5 minutes away or finished
-  const isLocked = isFinished || (matchDate.getTime() - Date.now() < 5 * 60 * 1000)
+  const isLive = match.status === 'live'
+  // locked if less than 5 minutes away, live, or finished
+  const isLocked = isFinished || isLive || (matchDate.getTime() - Date.now() < 5 * 60 * 1000)
 
   const formattedDate = matchDate.toLocaleString('es-ES', {
     weekday: 'short',
@@ -187,6 +190,7 @@ export function MatchCard({
           home_score: homeG,
           away_score: awayG,
           status: adminStatus,
+          score_manually_set: scoreManuallySet,
         })
         .eq('id', match.id)
         .select()
@@ -271,6 +275,7 @@ export function MatchCard({
                 className="bg-slate-950 text-white border border-slate-800 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-xl outline-none focus:border-amber-550 transition duration-150 cursor-pointer"
               >
                 <option value="pending">Pendiente ⏳</option>
+                <option value="live">En Vivo 🔴</option>
                 <option value="finished">Finalizado ✅</option>
               </select>
             </div>
@@ -280,6 +285,11 @@ export function MatchCard({
               {isFinished ? (
                 <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] uppercase font-black tracking-wider bg-slate-900 border border-slate-800 text-slate-400">
                   Finalizado
+                </span>
+              ) : isLive ? (
+                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 animate-pulse">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-450"></span>
+                  En Vivo 🔴
                 </span>
               ) : isLocked ? (
                 <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] uppercase font-bold bg-accent/10 text-accent border border-accent/20">
@@ -358,6 +368,18 @@ export function MatchCard({
             </span>
           </div>
         </div>
+
+        {adminMode && (
+          <label className="flex items-center gap-2 text-[10px] sm:text-xs font-semibold text-slate-400 hover:text-slate-200 cursor-pointer select-none transition py-1">
+            <input
+              type="checkbox"
+              checked={scoreManuallySet}
+              onChange={(e) => setScoreManuallySet(e.target.checked)}
+              className="rounded border-slate-800 bg-slate-950 text-amber-500 focus:ring-amber-500 cursor-pointer"
+            />
+            <span>Fijar resultado manualmente (desactiva auto-sincronización)</span>
+          </label>
+        )}
 
         {/* Action Button */}
         <div className="w-full flex gap-2">

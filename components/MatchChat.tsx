@@ -370,7 +370,7 @@ export function MatchChat({
     return (
       <div
         onClick={() => setMinimized(false)}
-        className="fixed bottom-20 right-6 z-50 w-[260px] h-12 bg-[#2b2d31] border border-[#202225] rounded-xl shadow-2xl flex items-center justify-between px-3 cursor-pointer hover:bg-[#35373c] transition-all duration-300 animate-slide-in-right text-[#dbdee1] select-none"
+        className="fixed bottom-20 right-6 z-50 w-[260px] h-12 bg-[#2b2d31]/60 border border-[#202225]/60 backdrop-blur-md rounded-xl shadow-2xl flex items-center justify-between px-3 cursor-pointer hover:bg-[#35373c]/60 transition-all duration-300 animate-slide-in-right text-[#dbdee1] select-none"
         title="Expandir chat"
       >
         <div className="flex items-center gap-1.5 min-w-0">
@@ -409,12 +409,12 @@ export function MatchChat({
 
   return (
     <div
-      className="fixed bottom-20 right-6 z-50 w-[340px] sm:w-[380px] h-[480px] bg-[#313338] border border-[#202225] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-slide-in-right text-[#dbdee1] font-sans"
+      className="fixed bottom-20 right-6 z-50 w-[340px] sm:w-[380px] h-[480px] bg-[#313338]/60 border border-[#202225]/60 backdrop-blur-md rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-slide-in-right text-[#dbdee1] font-sans"
       role="dialog"
       aria-modal="true"
     >
       {/* Discord Header Panel */}
-      <div className="h-14 bg-[#2b2d31] px-3.5 flex items-center justify-between shadow-sm select-none border-b border-[#1f2023] shrink-0">
+      <div className="h-14 bg-[#2b2d31]/40 px-3.5 flex items-center justify-between shadow-sm select-none border-b border-[#1f2023]/60 shrink-0">
         <div className="flex items-center gap-2 min-w-0">
           {!isLobby && onBackToGeneral && (
             <button
@@ -464,7 +464,7 @@ export function MatchChat({
       </div>
 
       {/* Message Feed Area */}
-      <div className="flex-1 overflow-hidden flex flex-col bg-[#313338] relative min-h-0">
+      <div className="flex-1 overflow-hidden flex flex-col bg-transparent relative min-h-0">
         
         {/* GIF Search Overlay picker */}
         {showGifPicker && (
@@ -682,7 +682,7 @@ export function MatchChat({
         </div>
 
         {/* Input Bar */}
-        <div className="p-3 bg-[#313338] border-t border-[#3f4147]/15 shrink-0">
+        <div className="p-3 bg-[#313338]/40 border-t border-[#3f4147]/15 shrink-0">
           <form onSubmit={handleSubmit} className="flex items-center bg-[#383a40] rounded-lg px-3 py-2">
             <input
               ref={inputRef}

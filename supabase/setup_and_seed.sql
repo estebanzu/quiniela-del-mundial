@@ -3,9 +3,10 @@
 -- Run this script in your Supabase SQL Editor (https://supabase.com)
 -- =====================================================================
 
--- 1. Update matches table structure (adds missing columns stage_group and venue)
+-- 1. Update matches table structure (adds missing columns stage_group, venue, and score_manually_set)
 ALTER TABLE public.matches ADD COLUMN IF NOT EXISTS stage_group text;
 ALTER TABLE public.matches ADD COLUMN IF NOT EXISTS venue text;
+ALTER TABLE public.matches ADD COLUMN IF NOT EXISTS score_manually_set boolean not null default false;
 
 -- 2. Ensure predictions table and indexes are set up
 CREATE TABLE IF NOT EXISTS public.predictions (

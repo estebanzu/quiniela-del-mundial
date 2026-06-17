@@ -344,6 +344,13 @@ export default function DashboardPage() {
   const [activeChat, setActiveChat] = useState<{ id: number; homeTeam: string; awayTeam: string } | null>(null)
   const [chatMinimized, setChatMinimized] = useState(false)
 
+  // PWA installation states
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
+  const [showInstallBanner, setShowInstallBanner] = useState(false)
+  const [isIOS, setIsIOS] = useState(false)
+  const [isSafari, setIsSafari] = useState(false)
+  const [showIOSInstructions, setShowIOSInstructions] = useState(false)
+
   // Close dropdowns on outside click
   useEffect(() => {
     if (!dropdownOpen && !navDropdownOpen) return
@@ -710,6 +717,121 @@ export default function DashboardPage() {
       subscription.unsubscribe()
     }
   }, [router])
+
+  // Background auto-sync for matches
+  useEffect(() => {
+    if (!userId) return
+
+    let cancelled = false
+
+    const runBackgroundSync = async () => {
+      try {
+        const { data: sessionData } = await supabase.auth.getSession()
+        const token = sessionData.session?.access_token
+        if (!token) return
+
+        const res = await fetch('/api/sync-matches', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        })
+
+        if (!res.ok) {
+          console.warn('[AutoSync] HTTP error:', res.status)
+          return
+        }
+
+        const data = await res.json()
+        // If matches were updated, reload the data to show them in the UI
+        if (data.success && data.count > 0 && !cancelled) {
+          console.log(`[AutoSync] Sincronizados ${data.count} partidos en segundo plano.`)
+          await loadMatchesAndPredictions(userId)
+        }
+      } catch (err) {
+        console.error('[AutoSync] Error during background sync:', err)
+      }
+    }
+
+    // Run initial sync shortly after mounting
+    const initialTimeout = setTimeout(() => {
+      runBackgroundSync()
+    }, 2000)
+
+    // Run sync every 60 seconds
+    const interval = setInterval(() => {
+      runBackgroundSync()
+    }, 60000)
+
+    return () => {
+      cancelled = true
+      clearTimeout(initialTimeout)
+      clearInterval(interval)
+    }
+  }, [userId])
+
+  // Listen for native install prompt and detect platform for PWA
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    // Check if dismissed previously
+    const isDismissed = localStorage.getItem('pwa-install-dismissed') === 'true'
+    if (isDismissed) return
+
+    // Check if already running in standalone mode (already installed)
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
+                         (window.navigator as any).standalone
+    if (isStandalone) return
+
+    const ua = window.navigator.userAgent
+    const ios = /iPad|iPhone|iPod/.test(ua) && !(window.navigator as any).MSStream
+    const safari = /Safari/.test(ua) && !/CriOS|FxiOS|OPiOS|mercury/i.test(ua)
+
+    setIsIOS(ios)
+    setIsSafari(safari)
+
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault()
+      setDeferredPrompt(e)
+      setShowInstallBanner(true)
+    }
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+
+    // Manual banner display for iOS Safari users who haven't installed yet
+    if (ios && safari) {
+      setShowInstallBanner(true)
+    }
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
+    }
+  }, [])
+
+  const handleInstallApp = async () => {
+    if (isIOS) {
+      setShowIOSInstructions(true)
+      return
+    }
+
+    if (!deferredPrompt) return
+
+    deferredPrompt.prompt()
+    try {
+      const { outcome } = await deferredPrompt.userChoice
+      if (outcome === 'accepted') {
+        setShowInstallBanner(false)
+      }
+    } catch (err) {
+      console.error('Error in PWA install choice:', err)
+    }
+    setDeferredPrompt(null)
+  }
+
+  const handleDismissInstallBanner = () => {
+    setShowInstallBanner(false)
+    localStorage.setItem('pwa-install-dismissed', 'true')
+  }
 
   useEffect(() => {
     const loadNews = async () => {
@@ -1178,6 +1300,43 @@ export default function DashboardPage() {
             </button>
           </div>
         </header>
+
+        {showInstallBanner && (
+          <div className="mt-6 p-4 sm:p-5 rounded-3xl bg-slate-950/70 border border-primary/25 shadow-lg shadow-cyan-950/5 backdrop-blur-[4px] flex flex-col sm:flex-row sm:items-center justify-between gap-4 select-none relative animate-fadeIn">
+            {/* Dismiss Button */}
+            <button
+              onClick={handleDismissInstallBanner}
+              className="absolute top-3 right-3 text-slate-500 hover:text-slate-355 transition duration-150 cursor-pointer text-sm font-bold flex items-center justify-center w-6 h-6 rounded-full hover:bg-slate-900/60"
+              title="Cerrar"
+            >
+              ✕
+            </button>
+
+            <div className="flex items-start sm:items-center gap-4.5 pr-6">
+              {/* Phone Icon */}
+              <div className="shrink-0 w-11 h-11 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary text-xl">
+                📱
+              </div>
+              <div className="flex flex-col">
+                <h4 className="text-sm font-black text-slate-100 tracking-tight leading-tight flex items-center gap-2">
+                  🏆 ¡Lleva la Quiniela en tu pantalla!
+                </h4>
+                <p className="text-[11px] text-slate-400 font-medium leading-normal mt-0.5 max-w-xl">
+                  Instala la aplicación en tu pantalla de inicio para una experiencia inmersiva, soporte offline, carga ultra-rápida y notificaciones más fluidas.
+                </p>
+              </div>
+            </div>
+
+            <div className="shrink-0 flex items-center gap-2 mt-1 sm:mt-0">
+              <button
+                onClick={handleInstallApp}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-gradient-to-r from-primary to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black text-[11px] uppercase tracking-wider transition active:scale-95 duration-150 cursor-pointer shadow-md"
+              >
+                Instalar App
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Navigation Dropdown */}
         <div className="relative mt-6 mb-2">
@@ -3181,6 +3340,102 @@ export default function DashboardPage() {
             currentUsername={username}
             usersList={leaderboard.map((u) => u.username)}
           />
+        )}
+
+        {/* iOS Safari Installation Instructions Modal */}
+        {showIOSInstructions && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
+            <div className="w-full max-w-md glass-card p-6 sm:p-7 border border-slate-800 shadow-2xl relative rounded-3xl text-left">
+              {/* Close Button */}
+              <button
+                onClick={() => setShowIOSInstructions(false)}
+                className="absolute top-4 right-4 text-slate-400 hover:text-white transition duration-150 cursor-pointer font-bold text-base flex items-center justify-center w-8 h-8 rounded-full hover:bg-slate-900/60"
+                title="Cerrar"
+              >
+                ✕
+              </button>
+
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-10 h-10 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary text-xl">
+                  🍏
+                </div>
+                <div>
+                  <h4 className="text-base font-black text-slate-100 tracking-tight">
+                    Instalar en tu iPhone o iPad
+                  </h4>
+                  <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+                    Instrucciones para iOS Safari
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-300 leading-relaxed mb-5">
+                Apple no permite la instalación automática de aplicaciones desde el navegador. Sigue estos sencillos pasos para guardarla en tu pantalla de inicio:
+              </p>
+
+              <div className="space-y-4 mb-6">
+                <div className="flex gap-3.5 items-start">
+                  <div className="shrink-0 w-7 h-7 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-xs font-black text-slate-300">
+                    1
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-200 font-bold leading-snug">
+                      Presiona el botón de Compartir <span className="inline-block px-1.5 py-0.5 rounded bg-slate-900 border border-slate-850 text-base">📤</span>
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Ubicado en la barra de navegación inferior de Safari (en iPhone) o en la barra superior (en iPad).
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-3.5 items-start">
+                  <div className="shrink-0 w-7 h-7 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-xs font-black text-slate-300">
+                    2
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-200 font-bold leading-snug">
+                      Selecciona &quot;Agregar a pantalla de inicio&quot; <span className="inline-block px-1.5 py-0.5 rounded bg-slate-900 border border-slate-850 text-base">➕</span>
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Desplázate hacia abajo en el menú de opciones que aparece.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-3.5 items-start">
+                  <div className="shrink-0 w-7 h-7 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-xs font-black text-slate-300">
+                    3
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-200 font-bold leading-snug">
+                      Toca &quot;Agregar&quot; en la esquina superior derecha
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      ¡Y listo! Ya aparecerá el ícono de la Quiniela junto al resto de tus aplicaciones.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Mini visual mockup of safari options */}
+              <div className="p-3 bg-slate-950/50 border border-slate-900 rounded-2xl flex flex-col gap-2 mb-6">
+                <div className="text-[10px] text-slate-500 font-black uppercase tracking-wider">Vista previa de opciones</div>
+                <div className="flex items-center justify-between p-2 rounded-xl bg-slate-900/60 border border-slate-850/50">
+                  <span className="text-xs font-semibold text-slate-300">Agregar a pantalla de inicio</span>
+                  <span className="text-slate-400 text-sm">➕</span>
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  onClick={() => setShowIOSInstructions(false)}
+                  className="w-full px-5 py-3 rounded-xl bg-gradient-to-r from-primary to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black text-xs uppercase tracking-wider transition active:scale-95 duration-150 cursor-pointer text-center shadow-lg shadow-cyan-950/20"
+                >
+                  Entendido, ¡gracias!
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
       </div>

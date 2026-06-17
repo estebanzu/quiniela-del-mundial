@@ -7,7 +7,8 @@ export type Match = {
   venue?: string
   home_score: number | null
   away_score: number | null
-  status: 'pending' | 'finished'
+  status: 'pending' | 'live' | 'finished'
+  score_manually_set?: boolean
 }
 
 export type Prediction = {

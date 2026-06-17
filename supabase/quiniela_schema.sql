@@ -8,7 +8,8 @@ create table if not exists public.matches (
   match_date timestamptz not null,
   home_score int,
   away_score int,
-  status text not null default 'pending'
+  status text not null default 'pending',
+  score_manually_set boolean not null default false
 );
 
 -- Predictions Table
