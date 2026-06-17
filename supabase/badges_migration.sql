@@ -422,9 +422,11 @@ begin
              ans_date - (row_number() over (order by ans_date))::int as grp
       from dates
     )
-    select max(count(*)) into consec_days_count
+    select count(*) into consec_days_count
     from diffs
-    group by grp;
+    group by grp
+    order by count(*) desc
+    limit 1;
 
     if consec_days_count >= 5 then
       perform public.award_badge(uid, 'trivia_fanatic');
