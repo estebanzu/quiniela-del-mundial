@@ -47,9 +47,34 @@ Este documento detalla el estado actual del desarrollo de la Quiniela del Mundia
   - Envío automático de correo con el resumen diario de resultados utilizando **Resend** (invocando la API `/api/send-daily-results` y filtrando por correo de recuperación).
   - Sincronización en vivo con API externa `api.football-data.org`.
 
-- [/] **Fase 7: Pruebas y Validación (En Curso)**
+- [x] **Fase 7: Pruebas y Validación**
   - Corrección de tipados y compilación estricta de TypeScript.
   - Pruebas manuales de la lógica de desempate de terceros lugares.
+
+- [x] **Fase 8: Soporte de Aplicación Web Progresiva (PWA)**
+  - Configuración de manifiesto de la aplicación (`public/manifest.json`).
+  - Configuración de Service Worker (`public/sw.js`) para soporte offline y almacenamiento en caché.
+  - Configuración de iconos para dispositivos iOS/Android en `public/icons/` y enlace en `app/layout.tsx`.
+  - Instrucciones integradas en la app para la instalación en pantalla de inicio de dispositivos móviles.
+
+- [x] **Fase 9: Sistema de Notificaciones en Tiempo Real (In-App & Rachas)**
+  - Creación de la tabla `notifications` y sus políticas de seguridad RLS.
+  - Implementación del trigger `generate_match_notifications` en PostgreSQL para automatizar la creación de alertas al terminar partidos.
+  - Notificaciones específicas al iniciar, mantener o romper rachas "On Fire" (multiplicador x1.5).
+  - Componente de interfaz de usuario `NotificationBell` con suscripción activa a Supabase Realtime para recibir avisos sin recargar la página.
+
+- [x] **Fase 10: Módulo de Trivia Diaria (Gamificación)**
+  - Tablas de base de datos para preguntas y respuestas diarias (`trivia_questions` y `trivia_answers`) con políticas RLS y triggers de seguridad.
+  - Funciones RPC (`get_today_trivia`, `submit_trivia_answer`, `get_trivia_stats`) para proteger las respuestas correctas antes de ser respondidas.
+  - Carga masiva (seed) de 30 preguntas de trivia del torneo y del fútbol mundial.
+  - Componente interactivo `TriviaView` integrado en el Dashboard.
+  - Modificación de las funciones del Leaderboard (`get_leaderboard` y `get_leaderboard_by_phase`) para integrar los puntos obtenidos en la trivia (+2 por acierto) al cómputo total y por fases.
+
+- [x] **Fase 11: Utilidades y Mejoras de Calidad de Vida (QoL)**
+  - Exportación de la tabla de clasificación de fases como imagen PNG utilizando `html-to-image` y Web Share API para fácil compartición (ej. WhatsApp).
+  - Adaptación de la zona horaria del mundial al huso horario de América/Costa_Rica (UTC-6).
+  - Proxy y feed de RSS (`/rss`) con plantilla HTML enriquecida para ver resultados diarios.
+  - Actualización de Makefile para automatizar operaciones de inicio, detención y limpieza del servidor Next.js.
 
 ---
 
@@ -86,6 +111,8 @@ Durante la refactorización de `app/page.tsx`, se aislaron componentes que recib
 5.  **`ScheduleView`**: Visualiza la programación del fixture organizada por días de torneo.
 6.  **`PhasesView`**: Tabla de clasificación desglosada que consulta `get_leaderboard_by_phase()` en Supabase.
 7.  **`H2HView`**: Permite seleccionar a un rival y cruzar predicciones para ver quién acertó más partidos.
+8.  **`NotificationBell`**: Gestiona las notificaciones en tiempo real, mostrándolas en un panel flotante de campana con estado de no leídos.
+9.  **`TriviaView`**: Despliega la trivia de fútbol diaria, gestiona el envío de respuestas a Supabase RPC y muestra el estado y las estadísticas de racha de trivia del usuario.
 
 ---
 
