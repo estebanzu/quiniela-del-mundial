@@ -12,6 +12,7 @@ import { MatchChat } from '../components/MatchChat'
 import { toBlob } from 'html-to-image'
 import { BADGES_CATALOG, type Badge } from '../lib/badges'
 import BadgeUnlockOverlay from '../components/BadgeUnlockOverlay'
+import NewsInfoView from '../components/NewsInfoView'
 
 const TZ = 'America/Costa_Rica' // UTC-6
 
@@ -33,7 +34,7 @@ type Match = {
   venue?: string
   home_score: number | null
   away_score: number | null
-  status: 'pending' | 'finished'
+  status: 'pending' | 'live' | 'finished'
 }
 
 type Prediction = {
@@ -339,7 +340,7 @@ export default function DashboardPage() {
     total_points: number;
   }[]>([])
   const [news, setNews] = useState<any[]>([])
-  const [viewMode, setViewMode] = useState<'predictions' | 'schedule' | 'groups' | 'phases' | 'h2h' | 'stats' | 'trivia' | 'live_matches' | 'badges' | 'admin'>('predictions')
+  const [viewMode, setViewMode] = useState<'predictions' | 'schedule' | 'groups' | 'phases' | 'h2h' | 'stats' | 'trivia' | 'live_matches' | 'badges' | 'news_info' | 'admin'>('predictions')
   const [activeGroupIndex, setActiveGroupIndex] = useState(0)
   const [activeScheduleDayIndex, setActiveScheduleDayIndex] = useState(0)
   const [activePredictionsDayIndex, setActivePredictionsDayIndex] = useState(0)
@@ -1444,7 +1445,7 @@ export default function DashboardPage() {
             onClick={(e) => { e.stopPropagation(); setNavDropdownOpen(!navDropdownOpen) }}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-white hover:border-slate-700 transition text-sm font-bold cursor-pointer"
           >
-            <span>{viewMode === 'predictions' ? '🔮 Mis Pronósticos' : viewMode === 'schedule' ? '📅 Calendario' : viewMode === 'groups' ? '🏆 Grupos del Mundial' : viewMode === 'phases' ? '📊 Tabla por Fases' : viewMode === 'h2h' ? '🥊 Cara a Cara' : viewMode === 'stats' ? '📈 Mis Estadísticas' : viewMode === 'trivia' ? '🧠 Trivia Diaria' : viewMode === 'live_matches' ? '⚡ Partidos en Vivo' : viewMode === 'badges' ? '🏆 Insignias' : '🔧 Panel Admin'}</span>
+            <span>{viewMode === 'predictions' ? '🔮 Mis Pronósticos' : viewMode === 'schedule' ? '📅 Calendario' : viewMode === 'groups' ? '🏆 Grupos del Mundial' : viewMode === 'phases' ? '📊 Tabla por Fases' : viewMode === 'h2h' ? '🥊 Cara a Cara' : viewMode === 'stats' ? '📈 Mis Estadísticas' : viewMode === 'trivia' ? '🧠 Trivia Diaria' : viewMode === 'live_matches' ? '⚡ Partidos en Vivo' : viewMode === 'badges' ? '🏆 Insignias' : viewMode === 'news_info' ? '📰 Noticias e Info' : '🔧 Panel Admin'}</span>
             <svg className={`w-3 h-3 transition-transform ${navDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7"></path>
             </svg>
@@ -1462,6 +1463,7 @@ export default function DashboardPage() {
                 { key: 'trivia' as const, label: '🧠 Trivia Diaria' },
                 { key: 'live_matches' as const, label: '⚡ Partidos en Vivo' },
                 { key: 'badges' as const, label: '🏆 Colección de Insignias' },
+                { key: 'news_info' as const, label: '📰 Noticias e Info' },
               ].map((item) => (
                 <button
                   key={item.key}
@@ -2993,6 +2995,10 @@ export default function DashboardPage() {
             </section>
           )
         })()}
+
+        {viewMode === 'news_info' && (
+          <NewsInfoView />
+        )}
 
         {viewMode === 'admin' && (
           <section className="mt-8 animate-fadeIn">
