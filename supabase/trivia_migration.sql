@@ -342,7 +342,7 @@ insert into public.trivia_questions (question, options, correct_index, trivia_da
    '["2014", "2018", "2022", "2010"]', 1, '2026-06-16', 'reglas'),
 
   ('¿Qué jugador ha disputado más partidos en Mundiales?',
-   '["Lothar Matthäus", "Paolo Maldini", "Lionel Messi", "Cristiano Ronaldo"]', 0, '2026-06-17', 'récords'),
+   '["Lothar Matthäus", "Paolo Maldini", "Lionel Messi", "Cristiano Ronaldo"]', 2, '2026-06-17', 'récords'),
 
   ('¿Cuántos países serán sede del Mundial 2026?',
    '["1", "2", "3", "4"]', 2, '2026-06-18', '2026'),
