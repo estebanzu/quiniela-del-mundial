@@ -3178,6 +3178,8 @@ export default function DashboardPage() {
               setActiveChat({ id: 0, homeTeam: 'Lobby', awayTeam: 'General' })
               setChatMinimized(false)
             }}
+            currentUsername={username}
+            usersList={leaderboard.map((u) => u.username)}
           />
         )}
 

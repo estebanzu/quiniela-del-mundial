@@ -16,6 +16,8 @@ interface MatchChatProps {
   setMinimized: (min: boolean) => void
   onClose: () => void
   onBackToGeneral?: () => void
+  currentUsername: string
+  usersList?: string[]
 }
 
 const getAvatarColor = (name: string) => {
@@ -51,6 +53,8 @@ export function MatchChat({
   setMinimized,
   onClose,
   onBackToGeneral,
+  currentUsername,
+  usersList = [],
 }: MatchChatProps) {
   const [comments, setComments] = useState<MatchComment[]>([])
   const [newComment, setNewComment] = useState('')
@@ -58,6 +62,7 @@ export function MatchChat({
   const [sending, setSending] = useState(false)
   const chatEndRef = useRef<HTMLDivElement>(null)
   const chatContainerRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   // Emoji and GIF Picker States
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
@@ -65,6 +70,10 @@ export function MatchChat({
   const [gifSearchQuery, setGifSearchQuery] = useState('')
   const [gifs, setGifs] = useState<any[]>([])
   const [gifLoading, setGifLoading] = useState(false)
+
+  // Mention Autocomplete States
+  const [showMentionPanel, setShowMentionPanel] = useState(false)
+  const [mentionSearchQuery, setMentionSearchQuery] = useState('')
 
   const scrollToBottom = (behavior: 'smooth' | 'auto' = 'smooth') => {
     chatEndRef.current?.scrollIntoView({ behavior })
@@ -78,6 +87,16 @@ export function MatchChat({
   const cleanHome = homeTeam.toLowerCase().trim().replace(/[\s\.]+/g, '-')
   const cleanAway = awayTeam.toLowerCase().trim().replace(/[\s\.]+/g, '-')
   const channelName = isLobby ? 'general' : `${cleanHome}-vs-${cleanAway}`
+
+  // Filter users for @mention autocomplete suggestion
+  const filteredMentionUsers = usersList
+    .filter(
+      (uname) =>
+        uname &&
+        uname.toLowerCase().startsWith(mentionSearchQuery) &&
+        uname.toLowerCase() !== currentUsername.toLowerCase()
+    )
+    .slice(0, 5)
 
   // Initial comments load
   useEffect(() => {
@@ -183,6 +202,47 @@ export function MatchChat({
     }
   }, [comments.length, minimized])
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value
+    setNewComment(val)
+
+    // Check if the word at the cursor starts with '@'
+    const selectionStart = e.target.selectionStart || 0
+    const textBeforeCursor = val.slice(0, selectionStart)
+    const words = textBeforeCursor.split(/\s+/)
+    const lastWord = words[words.length - 1]
+
+    if (lastWord.startsWith('@')) {
+      setShowMentionPanel(true)
+      setMentionSearchQuery(lastWord.slice(1).toLowerCase())
+    } else {
+      setShowMentionPanel(false)
+    }
+  }
+
+  const handleSelectMention = (targetUsername: string) => {
+    const cursorPosition = inputRef.current?.selectionStart || 0
+    const textBeforeCursor = newComment.slice(0, cursorPosition)
+    const textAfterCursor = newComment.slice(cursorPosition)
+
+    const lastAtIndex = textBeforeCursor.lastIndexOf('@')
+    
+    if (lastAtIndex !== -1) {
+      const newText = textBeforeCursor.slice(0, lastAtIndex) + `@${targetUsername} ` + textAfterCursor
+      setNewComment(newText)
+      setShowMentionPanel(false)
+      
+      // Refocus input and place cursor right after the autocompleted mention
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus()
+          const newPos = lastAtIndex + targetUsername.length + 2 // @ + name + space
+          inputRef.current.setSelectionRange(newPos, newPos)
+        }
+      }, 50)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     const content = newComment.trim()
@@ -256,7 +316,7 @@ export function MatchChat({
     }
   }
 
-  // Helper function to render text or embed media if a URL is found (e.g. GIPHY gif)
+  // Helper function to render text or embed media if a URL is found, and highlights mentions
   const renderMessageBody = (content: string) => {
     const isUrl = content.startsWith('http://') || content.startsWith('https://')
     const isImage = content.match(/\.(jpeg|jpg|gif|png)$/) != null || content.includes('giphy.com/media/')
@@ -269,7 +329,32 @@ export function MatchChat({
       )
     }
 
-    return <p className="text-xs sm:text-[13px] text-[#dbdee1] break-words leading-relaxed whitespace-pre-wrap">{content}</p>
+    // Split text by @username tokens
+    const parts = content.split(/(@[a-zA-Z0-9_\-\.]+)/g)
+
+    return (
+      <p className="text-xs sm:text-[13px] text-[#dbdee1] break-words leading-relaxed whitespace-pre-wrap">
+        {parts.map((part, idx) => {
+          if (part.startsWith('@')) {
+            const mentioned = part.slice(1)
+            const isMe = mentioned.toLowerCase() === currentUsername.toLowerCase()
+            return (
+              <span
+                key={idx}
+                className={`font-semibold px-1 rounded transition select-all ${
+                  isMe
+                    ? 'bg-[#faa81a]/25 text-[#faa81a] hover:bg-[#faa81a] hover:text-slate-950 font-bold'
+                    : 'bg-[#5865F2]/20 text-[#e9e9f7] hover:bg-[#5865F2] hover:text-white'
+                }`}
+              >
+                {part}
+              </span>
+            )
+          }
+          return part
+        })}
+      </p>
+    )
   }
 
   // Handle closing on Escape key press
@@ -464,6 +549,28 @@ export function MatchChat({
           </div>
         )}
 
+        {/* Autocomplete Mentions Box */}
+        {showMentionPanel && filteredMentionUsers.length > 0 && (
+          <div className="absolute bottom-16 left-4 right-4 bg-[#2b2d31] border border-[#202225] rounded-xl shadow-2xl z-30 select-none overflow-hidden max-h-[160px] overflow-y-auto animate-fadeIn">
+            <div className="px-3 py-1.5 bg-[#232428] text-[9px] font-black text-[#949ba4] uppercase tracking-wider select-none">
+              Miembros que coinciden
+            </div>
+            {filteredMentionUsers.map((uname) => (
+              <button
+                key={uname}
+                type="button"
+                onClick={() => handleSelectMention(uname)}
+                className="w-full text-left px-3 py-2 hover:bg-[#35373c] text-xs font-semibold text-[#dbdee1] flex items-center gap-2 transition cursor-pointer"
+              >
+                <span className="w-5 h-5 rounded-full bg-[#5865F2]/20 text-[#5865F2] flex items-center justify-center font-bold text-[9px]">
+                  @
+                </span>
+                <span>{uname}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Messages feed container */}
         <div
           ref={chatContainerRef}
@@ -503,6 +610,9 @@ export function MatchChat({
           ) : (
             comments.map((comment) => {
               const isOwn = comment.user_id === userId
+              const mentionPattern = new RegExp(`@${currentUsername}\\b`, 'i')
+              const isMentioned = mentionPattern.test(comment.comment)
+
               const avatarColor = getAvatarColor(comment.username)
               const initial = comment.username.charAt(0).toUpperCase()
               const timeStr = new Date(comment.created_at).toLocaleTimeString([], {
@@ -513,8 +623,12 @@ export function MatchChat({
               return (
                 <div
                   key={comment.id}
-                  className={`group flex gap-3 items-start px-2 py-1 -mx-2 rounded hover:bg-[#2e3035] transition-colors duration-100 ${
-                    isOwn ? 'bg-[#5865f2]/5' : ''
+                  className={`group flex gap-3 items-start px-2 py-1 -mx-2 rounded transition-colors duration-100 ${
+                    isOwn
+                      ? 'bg-[#5865f2]/5 hover:bg-[#5865f2]/10 border-l border-[#5865f2]/30'
+                      : isMentioned
+                      ? 'bg-[#faa81a]/5 border-l-2 border-[#faa81a] hover:bg-[#faa81a]/10'
+                      : 'hover:bg-[#2e3035]'
                   }`}
                 >
                   {/* User Avatar */}
@@ -571,9 +685,10 @@ export function MatchChat({
         <div className="p-3 bg-[#313338] border-t border-[#3f4147]/15 shrink-0">
           <form onSubmit={handleSubmit} className="flex items-center bg-[#383a40] rounded-lg px-3 py-2">
             <input
+              ref={inputRef}
               type="text"
               value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
+              onChange={handleInputChange}
               disabled={sending}
               placeholder={`Enviar mensaje a #${channelName}`}
               maxLength={500}
