@@ -87,6 +87,51 @@ export function MatchCard({
     fetchCommentCount()
   }, [match.id])
 
+  const [wisdom, setWisdom] = useState<{ homeWin: number; awayWin: number; draw: number; total: number } | null>(null)
+
+  // Fetch prediction stats (crowd wisdom)
+  useEffect(() => {
+    const fetchCrowdWisdom = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('predictions')
+          .select('predicted_home, predicted_away')
+          .eq('match_id', match.id)
+
+        if (!error && data) {
+          const total = data.length
+          if (total > 0) {
+            let homeWin = 0
+            let awayWin = 0
+            let draw = 0
+
+            for (const pred of data) {
+              if (pred.predicted_home > pred.predicted_away) {
+                homeWin++
+              } else if (pred.predicted_away > pred.predicted_home) {
+                awayWin++
+              } else {
+                draw++
+              }
+            }
+
+            setWisdom({
+              homeWin: Math.round((homeWin / total) * 100),
+              awayWin: Math.round((awayWin / total) * 100),
+              draw: Math.round((draw / total) * 100),
+              total
+            })
+          } else {
+            setWisdom({ homeWin: 0, awayWin: 0, draw: 0, total: 0 })
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching crowd wisdom:', err)
+      }
+    }
+    fetchCrowdWisdom()
+  }, [match.id, prediction])
+
   // Synchronize state if database prediction changes
   useEffect(() => {
     if (prediction) {
@@ -379,6 +424,52 @@ export function MatchCard({
             />
             <span>Fijar resultado manualmente (desactiva auto-sincronización)</span>
           </label>
+        )}
+
+        {/* Crowd Wisdom Trend */}
+        {wisdom && wisdom.total > 0 && (
+          <div className="w-full mt-1 p-3.5 rounded-2xl bg-slate-950/45 border border-slate-800/40 text-slate-400 select-none">
+            <div className="flex justify-between items-center mb-2 text-[10px] uppercase font-black tracking-wider text-slate-400">
+              <span className="flex items-center gap-1.5 font-extrabold">
+                📊 Tendencia de la Comunidad
+              </span>
+              <span className="text-slate-500 font-semibold lowercase text-[9px]">
+                ({wisdom.total} {wisdom.total === 1 ? 'pronóstico' : 'pronósticos'})
+              </span>
+            </div>
+            
+            {/* Segmented Bar */}
+            <div className="w-full h-2 rounded-full bg-slate-900 overflow-hidden flex border border-slate-800/40">
+              {wisdom.homeWin > 0 && (
+                <div 
+                  style={{ width: `${wisdom.homeWin}%` }} 
+                  className="h-full bg-gradient-to-r from-cyan-500 to-cyan-600 transition-all duration-500"
+                  title={`${tTeam(match.home_team)}: ${wisdom.homeWin}%`}
+                />
+              )}
+              {wisdom.draw > 0 && (
+                <div 
+                  style={{ width: `${wisdom.draw}%` }} 
+                  className="h-full bg-slate-700 transition-all duration-500"
+                  title={`Empate: ${wisdom.draw}%`}
+                />
+              )}
+              {wisdom.awayWin > 0 && (
+                <div 
+                  style={{ width: `${wisdom.awayWin}%` }} 
+                  className="h-full bg-gradient-to-r from-purple-500 to-purple-600 transition-all duration-500"
+                  title={`${tTeam(match.away_team)}: ${wisdom.awayWin}%`}
+                />
+              )}
+            </div>
+            
+            {/* Labels */}
+            <div className="flex justify-between items-center text-[10px] font-bold mt-2 leading-none">
+              <span className="text-cyan-400 truncate max-w-[40%]">{tTeam(match.home_team)} ({wisdom.homeWin}%)</span>
+              <span className="text-slate-400 shrink-0">Empate ({wisdom.draw}%)</span>
+              <span className="text-purple-400 truncate max-w-[40%] text-right">{tTeam(match.away_team)} ({wisdom.awayWin}%)</span>
+            </div>
+          </div>
         )}
 
         {/* Action Button */}

@@ -80,8 +80,14 @@ timeline
 *   **Detalles:**
     *   Creado el endpoint de API `/api/predictions-reminder` seguro con protección mediante token de cron.
     *   Consulta automática de partidos pendientes en ventanas de tiempo de 2 horas (105-135 minutos) y 1 hora (45-75 minutos) antes de su kickoff.
-    *   Cruce de datos en tiempo real para identificar usuarios activos sin predicciones registradas para esos partidos.
     *   Generación automática de notificaciones in-app de tipo `prediction_reminder_2h` y `prediction_reminder_1h` con control de duplicidad a nivel de partido para evitar alertas repetidas.
+
+### 📊 9. Sabiduría de la Masa (Crowd Wisdom)
+*   **Estado:** Completado 🚀
+*   **Detalles:**
+    *   Implementado el cálculo dinámico de porcentajes acumulados de predicciones (local/empate/visitante) por partido.
+    *   Visualización interactiva con barra segmentada de colores en cada `MatchCard.tsx` que muestra en tiempo real la tendencia de la comunidad antes y después de cada kickoff.
+    *   Recálculo en caliente al guardar/actualizar el pronóstico del usuario para mantener la tendencia al día.
 
 ---
 
@@ -98,11 +104,9 @@ timeline
     *   Permitir a los usuarios retar directamente a otro amigo en un partido específico mediante duelos amistosos.
 3.  **Menciones en Chat (`@menciones`):**
     *   Envío de notificaciones en tiempo real cuando un usuario sea mencionado en el chat de un partido o del lobby.
-4.  **Sabiduría de la Masa (Crowd Wisdom):**
-    *   Visualizar porcentajes agregados de predicciones de la comunidad antes de cada partido para conocer la tendencia general.
-5.  **Tendencia de Posición en Leaderboard:**
+4.  **Tendencia de Posición en Leaderboard:**
     *   Indicadores visuales (`▲` / `▼`) que muestren el movimiento de puestos de cada usuario respecto a la jornada anterior.
-6.  **Comodines de Puntuación Doble (Jokers):**
+5.  **Comodines de Puntuación Doble (Jokers):**
     *   Soporte para 3 comodines por torneo para que el usuario elija duplicar los puntos en partidos estratégicos.
 
 ---
