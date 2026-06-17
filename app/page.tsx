@@ -6,6 +6,7 @@ import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase'
 import NotificationBell from '../components/NotificationBell'
 import { TriviaView } from '../components/TriviaView'
+import LiveMatchesView from '../components/LiveMatchesView'
 import { toBlob } from 'html-to-image'
 
 const TZ = 'America/Costa_Rica' // UTC-6
@@ -334,7 +335,7 @@ export default function DashboardPage() {
     total_points: number;
   }[]>([])
   const [news, setNews] = useState<any[]>([])
-  const [viewMode, setViewMode] = useState<'predictions' | 'schedule' | 'groups' | 'phases' | 'h2h' | 'stats' | 'trivia' | 'admin'>('predictions')
+  const [viewMode, setViewMode] = useState<'predictions' | 'schedule' | 'groups' | 'phases' | 'h2h' | 'stats' | 'trivia' | 'live_matches' | 'admin'>('predictions')
   const [activeGroupIndex, setActiveGroupIndex] = useState(0)
   const [activeScheduleDayIndex, setActiveScheduleDayIndex] = useState(0)
   const [activePredictionsDayIndex, setActivePredictionsDayIndex] = useState(0)
@@ -638,6 +639,14 @@ export default function DashboardPage() {
         if (sessionError) {
           // Invalid refresh token or other auth error — clear the stale session
           console.warn('Session error, signing out:', sessionError.message)
+          if (typeof window !== 'undefined') {
+            for (let i = 0; i < localStorage.length; i++) {
+              const key = localStorage.key(i)
+              if (key && key.startsWith('sb-') && key.endsWith('-auth-token')) {
+                localStorage.removeItem(key)
+              }
+            }
+          }
           await supabase.auth.signOut().catch(() => {})
           router.push('/login')
           return
@@ -665,6 +674,14 @@ export default function DashboardPage() {
         if (!cancelled) setLoading(false)
       } catch (err) {
         console.error('Session check failed:', err)
+        if (typeof window !== 'undefined') {
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i)
+            if (key && key.startsWith('sb-') && key.endsWith('-auth-token')) {
+              localStorage.removeItem(key)
+            }
+          }
+        }
         await supabase.auth.signOut().catch(() => {})
         if (!cancelled) router.push('/login')
       }
@@ -1165,7 +1182,7 @@ export default function DashboardPage() {
             onClick={(e) => { e.stopPropagation(); setNavDropdownOpen(!navDropdownOpen) }}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-white hover:border-slate-700 transition text-sm font-bold cursor-pointer"
           >
-            <span>{viewMode === 'predictions' ? '🔮 Mis Pronósticos' : viewMode === 'schedule' ? '📅 Calendario' : viewMode === 'groups' ? '🏆 Grupos del Mundial' : viewMode === 'phases' ? '📊 Tabla por Fases' : viewMode === 'h2h' ? '🥊 Cara a Cara' : viewMode === 'stats' ? '📈 Mis Estadísticas' : viewMode === 'trivia' ? '🧠 Trivia Diaria' : '🔧 Panel Admin'}</span>
+            <span>{viewMode === 'predictions' ? '🔮 Mis Pronósticos' : viewMode === 'schedule' ? '📅 Calendario' : viewMode === 'groups' ? '🏆 Grupos del Mundial' : viewMode === 'phases' ? '📊 Tabla por Fases' : viewMode === 'h2h' ? '🥊 Cara a Cara' : viewMode === 'stats' ? '📈 Mis Estadísticas' : viewMode === 'trivia' ? '🧠 Trivia Diaria' : viewMode === 'live_matches' ? '⚡ Partidos en Vivo' : '🔧 Panel Admin'}</span>
             <svg className={`w-3 h-3 transition-transform ${navDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7"></path>
             </svg>
@@ -1181,6 +1198,7 @@ export default function DashboardPage() {
                 { key: 'h2h' as const, label: '🥊 Cara a Cara' },
                 { key: 'stats' as const, label: '📈 Mis Estadísticas' },
                 { key: 'trivia' as const, label: '🧠 Trivia Diaria' },
+                { key: 'live_matches' as const, label: '⚡ Partidos en Vivo' },
               ].map((item) => (
                 <button
                   key={item.key}
@@ -2482,6 +2500,10 @@ export default function DashboardPage() {
 
         {viewMode === 'trivia' && (
           <TriviaView userId={userId} />
+        )}
+
+        {viewMode === 'live_matches' && (
+          <LiveMatchesView />
         )}
 
         {viewMode === 'admin' && (

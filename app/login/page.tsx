@@ -49,6 +49,15 @@ export default function LoginPage() {
   }, [])
 
   useEffect(() => {
+    // Clear localStorage to prevent refresh token not found error on initialization
+    if (typeof window !== 'undefined') {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i)
+        if (key && key.startsWith('sb-') && key.endsWith('-auth-token')) {
+          localStorage.removeItem(key)
+        }
+      }
+    }
     // Sign out cleanly when landing on login page
     supabase.auth.signOut().catch(() => {})
 

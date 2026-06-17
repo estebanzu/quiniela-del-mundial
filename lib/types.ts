@@ -32,3 +32,12 @@ export type TeamStandings = {
   gd: number
   pts: number
 }
+
+export type MatchComment = {
+  id: number
+  match_id: number
+  user_id: string
+  username: string
+  comment: string
+  created_at: string
+}

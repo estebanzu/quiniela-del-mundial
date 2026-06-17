@@ -12,7 +12,7 @@ timeline
     Q1 2026 : Lanzamiento Alpha : Base de Datos : Dashboard Base : Auth & RLS
     Q2 2026 : Lanzamiento Beta : Refactorización de Código : Panel de Administración : Integración con Resend
     Mayo 2026 : Pulido & UX (Completado) : UI/UX Glassmorphism : Optimización de Standings : Toasts Modernos
-    Junio 2026 : Torneo Activo (Actual) : PWA & Offline : Trivia Diaria : Notificaciones en Tiempo Real : Exportación a PNG : RSS Feed
+    Junio 2026 : Torneo Activo (Actual) : PWA & Offline : Trivia Diaria : Chat de Partido : Marcadores en Vivo : Notificaciones en Tiempo Real : Exportación a PNG : RSS Feed
     Julio 2026 : Próximas Mejoras : Mini-Ligas Privadas : Notificaciones Push : Soporte Multilingüe
 ```
 
@@ -50,6 +50,23 @@ timeline
     *   Endpoint de RSS `/rss` dinámico con caché optimizada y plantillas HTML para la visualización fluida del fixture y los marcadores de las últimas 48 horas.
     *   Ajuste global a la zona horaria `America/Costa_Rica` (UTC-6) en toda la lógica de negocio y base de datos.
 
+### 💬 5. Muro de Comentarios / Chat de Partido (Social)
+*   **Estado:** Completado 🚀
+*   **Detalles:**
+    *   Esquema de base de datos `match_comments` con políticas RLS y protección de longitud de comentarios.
+    *   Trigger en Postgres para asociar comentarios de forma segura a los nombres de usuario basados en su cuenta real de Supabase Auth.
+    *   Componente de chat interactivo en tiempo real `MatchChat.tsx` que se suscribe a los canales de Supabase Realtime para recibir y eliminar comentarios al instante.
+    *   Integración del chat expandible en `MatchCard.tsx` junto a un contador con efecto bounce dinámico.
+
+### ⚡ 6. Módulo de Marcadores en Vivo (Integración de API)
+*   **Estado:** Completado 🚀
+*   **Detalles:**
+    *   Creado el panel `LiveMatchesView.tsx` consumiendo la API CORS-open pública de `wcup2026.org`.
+    *   Soporte para filtros interactivos: En Vivo, Hoy, Próximos y Resultados Recientes.
+    *   Auto-polling en segundo plano cada 30 segundos con contador de última sincronización y refresco manual.
+    *   Integración de mapeo de banderas y traducción automática de selecciones al español para cohesión de marca.
+    *   Ajuste de tiempos de partidos al huso horario local de Costa Rica (`America/Costa_Rica`).
+
 ---
 
 ## 🚀 Fase 1: Próximas Características Sociales y Gamificación (Corto Plazo)
@@ -61,9 +78,7 @@ timeline
 1.  **Mini-Ligas / Grupos Privados:**
     *   Permitir a los usuarios crear ligas cerradas (por ejemplo: "Colegas de Oficina", "Familia Calderón", etc.) mediante un código de invitación único.
     *   Cada grupo privado tendrá su propia clasificación filtrada en tiempo real.
-2.  **Muro de Comentarios / Chat de Partido:**
-    *   Integrar un sistema de mensajería básico o sala de chat en tiempo real por cada tarjeta de partido (utilizando Supabase Realtime) para debatir predicciones y celebrar goles en vivo.
-3.  **Insignias y Logros (Badges):**
+2.  **Insignias y Logros (Badges):**
     *   Premiar hitos específicos de los jugadores:
         *   🏆 *El Nostradamus:* Acertar 3 marcadores exactos consecutivos.
         *   🔥 *Invicto:* Puntuar en toda una jornada de partidos.

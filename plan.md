@@ -76,6 +76,18 @@ Este documento detalla el estado actual del desarrollo de la Quiniela del Mundia
   - Proxy y feed de RSS (`/rss`) con plantilla HTML enriquecida para ver resultados diarios.
   - Actualización de Makefile para automatizar operaciones de inicio, detención y limpieza del servidor Next.js.
 
+- [x] **Fase 12: Muro de Comentarios / Chat de Partido**
+  - Creación de la tabla `match_comments` con RLS habilitada y restricción de caracteres.
+  - Trigger en Postgres para asociar comentarios de forma segura a los nombres de usuario basados en su cuenta real de Supabase Auth.
+  - Componente de chat interactivo en tiempo real `MatchChat.tsx` que se suscribe a los canales de Supabase Realtime para recibir y eliminar comentarios al instante.
+  - Integración del chat expandible en `MatchCard.tsx` junto a un contador con efecto bounce dinámico.
+
+- [x] **Fase 13: Módulo de Marcadores en Vivo (Integración de API)**
+  - Creación del componente `LiveMatchesView.tsx` consumiendo la API CORS pública de `wcup2026.org` para partidos diarios, en vivo, futuros y resultados históricos.
+  - Implementación de auto-polling de datos (refresco en segundo plano cada 30 segundos) con indicador de sincronización y botón de recarga manual.
+  - Integración de traducción automática de nombres de selecciones (de inglés a español) y formato de huso horario local de Costa Rica (`America/Costa_Rica`).
+  - Incorporación de la pestaña en la navegación general y renderizado condicional.
+
 ---
 
 ## 🛠️ Arquitectura de Software
@@ -113,6 +125,8 @@ Durante la refactorización de `app/page.tsx`, se aislaron componentes que recib
 7.  **`H2HView`**: Permite seleccionar a un rival y cruzar predicciones para ver quién acertó más partidos.
 8.  **`NotificationBell`**: Gestiona las notificaciones en tiempo real, mostrándolas en un panel flotante de campana con estado de no leídos.
 9.  **`TriviaView`**: Despliega la trivia de fútbol diaria, gestiona el envío de respuestas a Supabase RPC y muestra el estado y las estadísticas de racha de trivia del usuario.
+10. **`MatchChat`**: Despliega la sala de chat en tiempo real por partido, suscribiéndose a canales Supabase para envío, recepción y eliminación de comentarios.
+11. **`LiveMatchesView`**: Panel dedicado a marcadores en vivo de la Copa Mundial 2026, con filtros por categorías (hoy, en vivo, próximos, resultados) e integración de auto-refresco.
 
 ---
 
