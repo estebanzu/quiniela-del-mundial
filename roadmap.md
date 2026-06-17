@@ -89,6 +89,13 @@ timeline
     *   Visualización interactiva con barra segmentada de colores en cada `MatchCard.tsx` que muestra en tiempo real la tendencia de la comunidad antes y después de cada kickoff.
     *   Recálculo en caliente al guardar/actualizar el pronóstico del usuario para mantener la tendencia al día.
 
+### 📈 10. Tendencia de Posición en Leaderboard
+*   **Estado:** Completado 🚀
+*   **Detalles:**
+    *   Rediseñado el RPC de base de datos `get_leaderboard()` para calcular el ranking histórico de cada usuario (excluyendo los resultados y trivias del día actual).
+    *   Cálculo automático de la diferencia entre el ranking de ayer y el de hoy (`rank_change = yesterday_rank - current_rank`).
+    *   Integración de etiquetas visuales en la tabla de clasificación (`app/page.tsx`) que despliegan flechas animadas verdes (`▲`) o rojas (`▼`) con la cantidad de posiciones ganadas/perdidas, o un guión gris (`—`) si no hay cambios.
+
 ---
 
 ## 🚀 Fase 1: Próximas Características Sociales y Gamificación (Corto Plazo)
@@ -104,9 +111,7 @@ timeline
     *   Permitir a los usuarios retar directamente a otro amigo en un partido específico mediante duelos amistosos.
 3.  **Menciones en Chat (`@menciones`):**
     *   Envío de notificaciones en tiempo real cuando un usuario sea mencionado en el chat de un partido o del lobby.
-4.  **Tendencia de Posición en Leaderboard:**
-    *   Indicadores visuales (`▲` / `▼`) que muestren el movimiento de puestos de cada usuario respecto a la jornada anterior.
-5.  **Comodines de Puntuación Doble (Jokers):**
+4.  **Comodines de Puntuación Doble (Jokers):**
     *   Soporte para 3 comodines por torneo para que el usuario elija duplicar los puntos en partidos estratégicos.
 
 ---

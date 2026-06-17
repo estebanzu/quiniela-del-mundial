@@ -328,7 +328,7 @@ export default function DashboardPage() {
   const [seedingDummies, setSeedingDummies] = useState(false)
   const [deletingDummies, setDeletingDummies] = useState(false)
   const [adminMode, setAdminMode] = useState(false)
-  const [leaderboard, setLeaderboard] = useState<{ username: string; total_points: number; predictions_count: number }[]>([])
+  const [leaderboard, setLeaderboard] = useState<{ username: string; total_points: number; predictions_count: number; rank_change?: number | null }[]>([])
   const [phaseLeaderboard, setPhaseLeaderboard] = useState<{
     username: string;
     fase1: number;
@@ -1634,6 +1634,31 @@ export default function DashboardPage() {
                           <span className="w-6 text-xs font-black text-slate-500 text-center">
                             #{index + 1}
                           </span>
+                          {row.rank_change !== undefined && row.rank_change !== null && (
+                            <span 
+                              className={`text-[9px] font-black w-7 h-5 flex items-center justify-center gap-0.5 rounded-md border transition-all ${
+                                Number(row.rank_change) > 0 
+                                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-sm shadow-emerald-500/5' 
+                                  : Number(row.rank_change) < 0 
+                                  ? 'bg-rose-500/10 text-rose-400 border-rose-500/20 shadow-sm shadow-rose-500/5' 
+                                  : 'bg-transparent text-slate-600 border-transparent'
+                              }`}
+                              title={
+                                Number(row.rank_change) > 0 
+                                  ? `Subió ${row.rank_change} puesto(s) desde ayer` 
+                                  : Number(row.rank_change) < 0 
+                                  ? `Bajó ${Math.abs(Number(row.rank_change))} puesto(s) desde ayer` 
+                                  : 'Sin cambios de puesto desde ayer'
+                              }
+                            >
+                              {Number(row.rank_change) > 0 
+                                ? `▲${row.rank_change}` 
+                                : Number(row.rank_change) < 0 
+                                ? `▼${Math.abs(Number(row.rank_change))}` 
+                                : '—'
+                              }
+                            </span>
+                          )}
                           <span className="text-sm font-extrabold truncate flex items-center gap-1.5">
                             <span className="text-base">{getUserRank(Number(row.total_points)).icon}</span>
                             {row.username} {isMe && <span className="text-[10px] bg-primary text-slate-950 px-1.5 py-0.5 rounded font-black ml-1 uppercase">Tú</span>}
