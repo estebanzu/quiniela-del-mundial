@@ -35,6 +35,12 @@ const getAvatarColor = (name: string) => {
   return colors[index]
 }
 
+const EMOJIS = [
+  '⚽', '🏆', '🔥', '🎯', '😂', '🙌', '👍', '🎉',
+  '🚀', '👏', '🤫', '👑', '🤩', '🤣', '🤝', '❌',
+  '🥅', '👟', '🍺', '🇲🇽', '🇺🇸', '🇨🇦', '🇪🇸', '🇦🇷'
+]
+
 export function MatchChat({
   matchId,
   userId,
@@ -53,6 +59,13 @@ export function MatchChat({
   const chatEndRef = useRef<HTMLDivElement>(null)
   const chatContainerRef = useRef<HTMLDivElement>(null)
 
+  // Emoji and GIF Picker States
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [showGifPicker, setShowGifPicker] = useState(false)
+  const [gifSearchQuery, setGifSearchQuery] = useState('')
+  const [gifs, setGifs] = useState<any[]>([])
+  const [gifLoading, setGifLoading] = useState(false)
+
   const scrollToBottom = (behavior: 'smooth' | 'auto' = 'smooth') => {
     chatEndRef.current?.scrollIntoView({ behavior })
   }
@@ -66,7 +79,7 @@ export function MatchChat({
   const cleanAway = awayTeam.toLowerCase().trim().replace(/[\s\.]+/g, '-')
   const channelName = isLobby ? 'general' : `${cleanHome}-vs-${cleanAway}`
 
-  // Initial load
+  // Initial comments load
   useEffect(() => {
     setLoading(true)
     const fetchComments = async () => {
@@ -133,6 +146,36 @@ export function MatchChat({
     }
   }, [matchId])
 
+  // Fetch GIPHY gifs with debounce
+  useEffect(() => {
+    if (!showGifPicker) return
+
+    let active = true
+    const delayDebounceFn = setTimeout(async () => {
+      setGifLoading(true)
+      try {
+        const url = gifSearchQuery.trim()
+          ? `https://api.giphy.com/v1/gifs/search?api_key=dc6zaTOxFJmzC&q=${encodeURIComponent(gifSearchQuery)}&limit=15`
+          : `https://api.giphy.com/v1/gifs/trending?api_key=dc6zaTOxFJmzC&limit=15`
+        
+        const res = await fetch(url)
+        const json = await res.json()
+        if (active && json.data) {
+          setGifs(json.data)
+        }
+      } catch (err) {
+        console.error('Error fetching GIFs:', err)
+      } finally {
+        if (active) setGifLoading(false)
+      }
+    }, 400) // 400ms debounce
+
+    return () => {
+      active = false
+      clearTimeout(delayDebounceFn)
+    }
+  }, [gifSearchQuery, showGifPicker])
+
   // Scroll to bottom on initial loaded or when sending a comment
   useEffect(() => {
     if (comments.length > 0 && !minimized) {
@@ -171,6 +214,33 @@ export function MatchChat({
     }
   }
 
+  const handleSendGif = async (gifUrl: string) => {
+    if (sending) return
+    setSending(true)
+    setShowGifPicker(false)
+
+    try {
+      const payload: any = {
+        user_id: userId,
+        comment: gifUrl,
+      }
+      if (!isLobby) {
+        payload.match_id = matchId
+      }
+
+      const { error } = await supabase
+        .from(tableName)
+        .insert(payload)
+
+      if (error) throw error
+    } catch (err: any) {
+      console.error('Error sending GIF:', err)
+      toast.error('Error al enviar el GIF: ' + (err.message || err))
+    } finally {
+      setSending(false)
+    }
+  }
+
   const handleDeleteComment = async (commentId: number) => {
     try {
       const { error } = await supabase
@@ -184,6 +254,22 @@ export function MatchChat({
       console.error('Error deleting comment:', err)
       toast.error('No se pudo eliminar el comentario.')
     }
+  }
+
+  // Helper function to render text or embed media if a URL is found (e.g. GIPHY gif)
+  const renderMessageBody = (content: string) => {
+    const isUrl = content.startsWith('http://') || content.startsWith('https://')
+    const isImage = content.match(/\.(jpeg|jpg|gif|png)$/) != null || content.includes('giphy.com/media/')
+
+    if (isUrl && isImage) {
+      return (
+        <div className="mt-1.5 rounded-xl overflow-hidden max-w-[220px] border border-[#1e1f22] bg-[#1e1f22]/50 shadow-md select-none">
+          <img src={content} alt="GIF" className="w-full h-auto object-contain max-h-[160px]" loading="lazy" />
+        </div>
+      )
+    }
+
+    return <p className="text-xs sm:text-[13px] text-[#dbdee1] break-words leading-relaxed whitespace-pre-wrap">{content}</p>
   }
 
   // Handle closing on Escape key press
@@ -294,6 +380,91 @@ export function MatchChat({
 
       {/* Message Feed Area */}
       <div className="flex-1 overflow-hidden flex flex-col bg-[#313338] relative min-h-0">
+        
+        {/* GIF Search Overlay picker */}
+        {showGifPicker && (
+          <div className="absolute bottom-16 left-4 right-4 bg-[#2b2d31] border border-[#202225] rounded-xl p-2.5 shadow-2xl z-30 select-none animate-fadeIn flex flex-col min-h-[220px]">
+            <div className="flex items-center gap-2 mb-2 shrink-0">
+              <input
+                type="text"
+                value={gifSearchQuery}
+                onChange={(e) => setGifSearchQuery(e.target.value)}
+                placeholder="Buscar en GIPHY..."
+                className="flex-1 bg-[#1e1f22] text-[#dbdee1] placeholder-[#80848e] text-xs px-2.5 py-1.5 rounded-lg outline-none border border-[#202225] font-sans"
+              />
+              <button 
+                onClick={() => setShowGifPicker(false)} 
+                className="text-xs text-[#949ba4] hover:text-[#dbdee1] font-bold shrink-0 px-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+            
+            {gifLoading ? (
+              <div className="flex-1 flex justify-center items-center py-6 text-xs text-[#949ba4] gap-2">
+                <svg className="animate-spin h-4 w-4 text-[#5865F2]" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Cargando GIFs...</span>
+              </div>
+            ) : gifs.length === 0 ? (
+              <div className="flex-1 flex justify-center items-center text-xs text-[#949ba4] italic py-6">
+                No se encontraron resultados.
+              </div>
+            ) : (
+              <div className="flex-1 overflow-y-auto max-h-[140px] pr-1">
+                <div className="grid grid-cols-3 gap-1.5">
+                  {gifs.map((gif) => (
+                    <button
+                      key={gif.id}
+                      type="button"
+                      onClick={() => handleSendGif(gif.images.fixed_height.url)}
+                      className="relative h-14 bg-[#1e1f22] rounded overflow-hidden hover:opacity-85 active:scale-95 transition-all cursor-pointer shadow-sm border border-[#3f4147]/20"
+                    >
+                      <img src={gif.images.fixed_height_small.url} alt={gif.title} className="w-full h-full object-cover" loading="lazy" />
+                    </button>
+                  ))}
+                </div>
+                <div className="text-[8px] text-[#949ba4] text-right mt-1.5 uppercase font-bold select-none">
+                  Powered by GIPHY
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Emoji Selector Overlay picker */}
+        {showEmojiPicker && (
+          <div className="absolute bottom-16 left-4 right-4 bg-[#2b2d31] border border-[#202225] rounded-xl p-2.5 shadow-2xl z-30 select-none animate-fadeIn">
+            <div className="flex justify-between items-center mb-2 px-1 text-[10px] font-bold text-[#b5bac1] uppercase tracking-wider">
+              <span>Emojis deportivos y comunes</span>
+              <button 
+                onClick={() => setShowEmojiPicker(false)} 
+                className="text-[#949ba4] hover:text-[#dbdee1] font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="grid grid-cols-8 gap-2 text-lg max-h-[140px] overflow-y-auto pr-1">
+              {EMOJIS.map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  onClick={() => {
+                    setNewComment((prev) => prev + emoji)
+                    setShowEmojiPicker(false)
+                  }}
+                  className="hover:bg-[#35373c] p-1 rounded transition active:scale-90 flex items-center justify-center cursor-pointer text-base sm:text-lg"
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Messages feed container */}
         <div
           ref={chatContainerRef}
           className="flex-1 overflow-y-auto p-4 space-y-3.5 custom-scrollbar scroll-smooth"
@@ -310,7 +481,7 @@ export function MatchChat({
             <h4 className="text-base font-bold text-[#f2f3f5]">
               ¡Te damos la bienvenida a #{channelName}!
             </h4>
-            <p className="text-[11px] text-[#949ba4] mt-1 leading-normal">
+            <p className="text-[11px] text-[#949ba4] mt-1 leading-normal font-medium">
               {isLobby
                 ? 'Este es el comienzo del canal #general para conversar de todo un poco con los demás participantes.'
                 : `Este es el comienzo del canal #${channelName} para debatir sobre las predicciones y celebrar los goles.`}
@@ -373,9 +544,7 @@ export function MatchChat({
                         {timeStr}
                       </span>
                     </div>
-                    <p className="text-xs sm:text-[13px] text-[#dbdee1] break-words leading-relaxed whitespace-pre-wrap">
-                      {comment.comment}
-                    </p>
+                    {renderMessageBody(comment.comment)}
                   </div>
 
                   {/* Delete Comment */}
@@ -399,7 +568,7 @@ export function MatchChat({
         </div>
 
         {/* Input Bar */}
-        <div className="p-3 bg-[#313338] border-t border-[#3f4147]/15 shrink-0 select-none">
+        <div className="p-3 bg-[#313338] border-t border-[#3f4147]/15 shrink-0">
           <form onSubmit={handleSubmit} className="flex items-center bg-[#383a40] rounded-lg px-3 py-2">
             <input
               type="text"
@@ -408,8 +577,44 @@ export function MatchChat({
               disabled={sending}
               placeholder={`Enviar mensaje a #${channelName}`}
               maxLength={500}
-              className="flex-1 bg-transparent text-[#dbdee1] placeholder-[#80848e] text-xs sm:text-sm outline-none border-none pr-2"
+              className="flex-1 bg-transparent text-[#dbdee1] placeholder-[#80848e] text-xs sm:text-sm outline-none border-none pr-2 font-sans"
             />
+            
+            {/* Pickers Toggle Panel Actions */}
+            <div className="flex items-center gap-1.5 shrink-0 select-none mr-2">
+              {/* Emoji Picker Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowEmojiPicker(!showEmojiPicker)
+                  setShowGifPicker(false)
+                }}
+                className={`p-1 text-base sm:text-lg rounded hover:bg-[#4d515a]/50 active:scale-95 transition-all cursor-pointer ${
+                  showEmojiPicker ? 'bg-[#43464d]' : ''
+                }`}
+                title="Añadir Emoji"
+              >
+                😀
+              </button>
+
+              {/* GIF Search Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowGifPicker(!showGifPicker)
+                  setShowEmojiPicker(false)
+                }}
+                className={`px-1.5 py-0.5 text-[9px] font-black rounded border cursor-pointer transition-all active:scale-95 ${
+                  showGifPicker
+                    ? 'text-[#f2f3f5] bg-[#5865F2] border-[#5865F2]'
+                    : 'text-[#b5bac1] border-[#b5bac1]/30 hover:border-[#b5bac1]/60'
+                }`}
+                title="Insertar GIF GIPHY"
+              >
+                GIF
+              </button>
+            </div>
+
             <button
               type="submit"
               disabled={sending || !newComment.trim()}
