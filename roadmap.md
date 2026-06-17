@@ -12,7 +12,7 @@ timeline
     Q1 2026 : Lanzamiento Alpha : Base de Datos : Dashboard Base : Auth & RLS
     Q2 2026 : Lanzamiento Beta : Refactorización de Código : Panel de Administración : Integración con Resend
     Mayo 2026 : Pulido & UX (Completado) : UI/UX Glassmorphism : Optimización de Standings : Toasts Modernos
-    Junio 2026 : Torneo Activo (Actual) : PWA & Offline : Trivia Diaria : Chat de Partido : Marcadores en Vivo : Notificaciones en Tiempo Real : Exportación a PNG : RSS Feed
+    Junio 2026 : Torneo Activo (Actual) : PWA & Offline : Trivia Diaria : Chat de Partido : Marcadores en Vivo : Notificaciones en Tiempo Real : Exportación a PNG : RSS Feed : Insignias y Logros
     Julio 2026 : Próximas Mejoras : Mini-Ligas Privadas : Notificaciones Push : Soporte Multilingüe
 ```
 
@@ -67,6 +67,22 @@ timeline
     *   Integración de mapeo de banderas y traducción automática de selecciones al español para cohesión de marca.
     *   Ajuste de tiempos de partidos al huso horario local de Costa Rica (`America/Costa_Rica`).
 
+### 🏆 7. Sistema de Insignias y Logros (Gamificación)
+*   **Estado:** Completado 🚀
+*   **Detalles:**
+    *   Diseño y creación de la tabla `user_badges` con políticas RLS y publicación en Supabase Realtime.
+    *   Implementación de triggers en PostgreSQL (`trigger_check_prediction_badges`, `trigger_check_trivia_badges`, `trigger_check_social_badges`, `trigger_check_login_badges`) para el cálculo y asignación automatizada de logros al guardar predicciones, contestar trivia, participar en chats o iniciar sesión.
+    *   Componente interactivo en tiempo real `BadgeUnlockOverlay.tsx` para animaciones dinámicas al desbloquear insignias.
+    *   Sección interactiva de colección de insignias (`viewMode: 'badges'`) que despliega el catálogo completo y el estado de cada logro.
+
+### ⏰ 8. Recordatorios de Predicciones Pendientes (2h & 1h)
+*   **Estado:** Completado 🚀
+*   **Detalles:**
+    *   Creado el endpoint de API `/api/predictions-reminder` seguro con protección mediante token de cron.
+    *   Consulta automática de partidos pendientes en ventanas de tiempo de 2 horas (105-135 minutos) y 1 hora (45-75 minutos) antes de su kickoff.
+    *   Cruce de datos en tiempo real para identificar usuarios activos sin predicciones registradas para esos partidos.
+    *   Generación automática de notificaciones in-app de tipo `prediction_reminder_2h` y `prediction_reminder_1h` con control de duplicidad a nivel de partido para evitar alertas repetidas.
+
 ---
 
 ## 🚀 Fase 1: Próximas Características Sociales y Gamificación (Corto Plazo)
@@ -78,11 +94,6 @@ timeline
 1.  **Mini-Ligas / Grupos Privados:**
     *   Permitir a los usuarios crear ligas cerradas (por ejemplo: "Colegas de Oficina", "Familia Calderón", etc.) mediante un código de invitación único.
     *   Cada grupo privado tendrá su propia clasificación filtrada en tiempo real.
-2.  **Insignias y Logros (Badges):**
-    *   Premiar hitos específicos de los jugadores:
-        *   🏆 *El Nostradamus:* Acertar 3 marcadores exactos consecutivos.
-        *   🔥 *Invicto:* Puntuar en toda una jornada de partidos.
-        *   ⚡ *Último Minuto:* Guardar una predicción a menos de 10 minutos del bloqueo de tiempo.
 
 ---
 
@@ -92,9 +103,7 @@ timeline
 *   **Objetivos:** Automatizar los canales de recordatorio de apuestas y alertas push fuera de la app.
 
 ### Características Planificadas:
-1.  **Notificaciones Push en Navegador (Web Push):**
-    *   Enviar notificaciones automáticas 2 horas antes de que comience una tanda de partidos si el usuario aún tiene predicciones pendientes por registrar.
-2.  **Bot de Telegram o WhatsApp:**
+1.  **Bot de Telegram o WhatsApp:**
     *   Integración opcional para recibir alertas de goles en tiempo real, avisos de bloqueo de tiempo y resúmenes diarios de puntuación directo en su app de mensajería favorita.
 
 ---

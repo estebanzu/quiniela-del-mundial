@@ -42,6 +42,8 @@ function getNotificationIcon(type: string): string {
     case 'rank_change': return '📈'
     case 'phase_complete': return '🏆'
     case 'chat_mention': return '💬'
+    case 'prediction_reminder_2h':
+    case 'prediction_reminder_1h': return '🔮'
     default: return '🔔'
   }
 }
@@ -53,6 +55,8 @@ function getNotificationAccent(type: string): string {
     case 'rank_change': return 'border-l-emerald-500'
     case 'phase_complete': return 'border-l-amber-500'
     case 'chat_mention': return 'border-l-indigo-500'
+    case 'prediction_reminder_2h':
+    case 'prediction_reminder_1h': return 'border-l-purple-500'
     default: return 'border-l-primary'
   }
 }
