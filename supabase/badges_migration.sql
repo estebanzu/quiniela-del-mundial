@@ -73,6 +73,9 @@ declare
   invicto_days_count int;
   group_a_correct_count int;
   comeback_king_count int;
+  m_home_score int;
+  m_away_score int;
+  is_exact_hit boolean;
 begin
   -- Triggered on updates or inserts to predictions
   uid := NEW.user_id;
@@ -127,13 +130,22 @@ begin
     return NEW;
   end if;
 
+  -- Get official match score to check if it was an exact score prediction
+  select home_score, away_score into m_home_score, m_away_score
+  from public.matches
+  where id = NEW.match_id;
+
+  is_exact_hit := (m_home_score is not null and m_away_score is not null
+                   and NEW.predicted_home = m_home_score
+                   and NEW.predicted_away = m_away_score);
+
   -- 7. first_points (user earned points)
   if not exists (select 1 from public.user_badges where user_id = uid and badge_key = 'first_points') then
     perform public.award_badge(uid, 'first_points');
   end if;
 
-  -- 8. perfect_match (points = 5 exact score)
-  if NEW.points = 5 then
+  -- 8. perfect_match (exact score hit)
+  if is_exact_hit then
     if not exists (select 1 from public.user_badges where user_id = uid and badge_key = 'perfect_match') then
       perform public.award_badge(uid, 'perfect_match');
     end if;
@@ -141,7 +153,13 @@ begin
 
   -- 9. three_exact (3 exact scores)
   if not exists (select 1 from public.user_badges where user_id = uid and badge_key = 'three_exact') then
-    select count(*) into exact_preds from public.predictions where user_id = uid and points = 5;
+    select count(*) into exact_preds
+    from public.predictions p
+    inner join public.matches m on m.id = p.match_id
+    where p.user_id = uid
+      and m.status = 'finished'
+      and p.predicted_home = m.home_score
+      and p.predicted_away = m.away_score;
     if exact_preds >= 3 then
       perform public.award_badge(uid, 'three_exact');
     end if;
@@ -149,7 +167,13 @@ begin
 
   -- 10. ten_exact (10 exact scores)
   if not exists (select 1 from public.user_badges where user_id = uid and badge_key = 'ten_exact') then
-    select count(*) into exact_preds from public.predictions where user_id = uid and points = 5;
+    select count(*) into exact_preds
+    from public.predictions p
+    inner join public.matches m on m.id = p.match_id
+    where p.user_id = uid
+      and m.status = 'finished'
+      and p.predicted_home = m.home_score
+      and p.predicted_away = m.away_score;
     if exact_preds >= 10 then
       perform public.award_badge(uid, 'ten_exact');
     end if;
@@ -157,21 +181,27 @@ begin
 
   -- 11. twenty_exact (20 exact scores)
   if not exists (select 1 from public.user_badges where user_id = uid and badge_key = 'twenty_exact') then
-    select count(*) into exact_preds from public.predictions where user_id = uid and points = 5;
+    select count(*) into exact_preds
+    from public.predictions p
+    inner join public.matches m on m.id = p.match_id
+    where p.user_id = uid
+      and m.status = 'finished'
+      and p.predicted_home = m.home_score
+      and p.predicted_away = m.away_score;
     if exact_preds >= 20 then
       perform public.award_badge(uid, 'twenty_exact');
     end if;
   end if;
 
-  -- 12. exact_draw (points = 5 and predicted_home = predicted_away)
-  if NEW.points = 5 and NEW.predicted_home = NEW.predicted_away then
+  -- 12. exact_draw (exact score and predicted_home = predicted_away)
+  if is_exact_hit and NEW.predicted_home = NEW.predicted_away then
     if not exists (select 1 from public.user_badges where user_id = uid and badge_key = 'exact_draw') then
       perform public.award_badge(uid, 'exact_draw');
     end if;
   end if;
 
-  -- 13. high_scorer (points = 5 and either home or away prediction >= 4 goals)
-  if NEW.points = 5 and (NEW.predicted_home >= 4 or NEW.predicted_away >= 4) then
+  -- 13. high_scorer (exact score and either home or away prediction >= 4 goals)
+  if is_exact_hit and (NEW.predicted_home >= 4 or NEW.predicted_away >= 4) then
     if not exists (select 1 from public.user_badges where user_id = uid and badge_key = 'high_scorer') then
       perform public.award_badge(uid, 'high_scorer');
     end if;
@@ -192,16 +222,17 @@ begin
   -- 15. nostradamus (3 exact scores consecutively, ordered by match_date desc)
   if not exists (select 1 from public.user_badges where user_id = uid and badge_key = 'nostradamus') then
     with ordered_preds as (
-      select p.points,
-             lead(p.points, 1) over (order by m.match_date desc) as next_points,
-             lead(p.points, 2) over (order by m.match_date desc) as next_next_points
+      select 
+        (p.predicted_home = m.home_score and p.predicted_away = m.away_score) as is_exact,
+        lead(p.predicted_home = m.home_score and p.predicted_away = m.away_score, 1) over (order by m.match_date desc) as next_is_exact,
+        lead(p.predicted_home = m.home_score and p.predicted_away = m.away_score, 2) over (order by m.match_date desc) as next_next_is_exact
       from public.predictions p
       inner join public.matches m on m.id = p.match_id
       where p.user_id = uid and m.status = 'finished'
     )
     select count(*) into consec_exact
     from ordered_preds
-    where points = 5 and next_points = 5 and next_next_points = 5;
+    where is_exact = true and next_is_exact = true and next_next_is_exact = true;
 
     if consec_exact > 0 then
       perform public.award_badge(uid, 'nostradamus');

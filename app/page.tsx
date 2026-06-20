@@ -2749,7 +2749,10 @@ export default function DashboardPage() {
 
           const totalFinished = finishedPreds.length
           const totalHits = finishedPreds.filter(m => (predictions[m.id]?.points || 0) > 0).length
-          const exactHits = finishedPreds.filter(m => (predictions[m.id]?.points || 0) >= 5).length
+          const exactHits = finishedPreds.filter(m => {
+            const p = predictions[m.id]
+            return p && m.home_score === p.predicted_home && m.away_score === p.predicted_away
+          }).length
           const effectPct = totalFinished > 0 ? Math.round((totalHits / totalFinished) * 100) : 0
           const exactPct = totalFinished > 0 ? Math.round((exactHits / totalFinished) * 100) : 0
 

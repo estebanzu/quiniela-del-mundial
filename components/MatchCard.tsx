@@ -5,33 +5,40 @@ import { supabase } from '../lib/supabase'
 import type { Match, Prediction } from '../lib/types'
 import { tTeam } from '../lib/translations'
 
-function getPointsBadge(prediction: Prediction | undefined, isFinished: boolean) {
+function getPointsBadge(prediction: Prediction | undefined, match: Match) {
+  const isFinished = match.status === 'finished'
   if (!isFinished || !prediction) return null
   const pts = prediction.points || 0
-  if (pts === 5) {
+  if (pts === 0) {
+    return (
+      <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-800 text-slate-500 border border-slate-700">
+        ❌ +0 PTS
+      </span>
+    )
+  }
+
+  const homeActual = match.home_score ?? 0
+  const awayActual = match.away_score ?? 0
+  const isExact = homeActual === prediction.predicted_home && awayActual === prediction.predicted_away
+  const isDraw = homeActual === awayActual
+
+  if (isExact) {
     return (
       <span className="px-2.5 py-1 rounded-full text-xs font-black bg-amber-500/20 text-amber-400 border border-amber-500/30 animate-pulse">
-        🎯 +5 PTS
+        🎯 +{pts} PTS
       </span>
     )
   }
-  if (pts === 3) {
-    return (
-      <span className="px-2.5 py-1 rounded-full text-xs font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-        ⚽ +3 PTS
-      </span>
-    )
-  }
-  if (pts === 1) {
+  if (isDraw) {
     return (
       <span className="px-2.5 py-1 rounded-full text-xs font-black bg-teal-500/20 text-teal-400 border border-teal-500/30">
-        🤝 +1 PTS
+        🤝 +{pts} PTS
       </span>
     )
   }
   return (
-    <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-800 text-slate-500 border border-slate-700">
-      ❌ +0 PTS
+    <span className="px-2.5 py-1 rounded-full text-xs font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+      ⚽ +{pts} PTS
     </span>
   )
 }
@@ -370,7 +377,7 @@ export function MatchCard({
             </div>
           ) : (
             <>
-              {getPointsBadge(prediction, isFinished)}
+              {getPointsBadge(prediction, match)}
               {isFinished ? (
                 <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] uppercase font-black tracking-wider bg-slate-900 border border-slate-800 text-slate-400">
                   Finalizado
