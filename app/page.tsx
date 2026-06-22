@@ -1713,39 +1713,40 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Score Metrics Grid */}
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 flex items-center gap-3 min-w-[120px]">
-                    <div className="w-10 h-10 bg-amber-500/10 rounded-xl flex items-center justify-center text-amber-500">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="grid grid-cols-3 gap-1.5 sm:gap-3">
+                  <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-2.5 sm:p-4 flex items-center gap-2 sm:gap-3 min-w-0">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 bg-amber-500/10 rounded-xl flex items-center justify-center text-amber-500 shrink-0">
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5a2 2 0 10-2 2h2zm0 0h4m-4 0H8m0 0v13m0-13t2 2m-2-2L6 8M6 8V6a2 2 0 012-2h2m0 16a2 2 0 01-2-2v-1m2 3H6"></path>
                       </svg>
                     </div>
-                    <div>
-                      <span className="block text-[10px] uppercase font-bold text-slate-500 tracking-wider">Puntos</span>
-                      <span className="text-xl font-black text-amber-400">{totalPoints}</span>
+                    <div className="min-w-0">
+                      <span className="block text-[8px] sm:text-[10px] uppercase font-bold text-slate-500 tracking-wider">Puntos</span>
+                      <span className="text-sm sm:text-xl font-black text-amber-400 block truncate">{totalPoints}</span>
                     </div>
                   </div>
 
-                  <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 flex items-center gap-3 min-w-[120px]">
-                    <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary">
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-2.5 sm:p-4 flex items-center gap-2 sm:gap-3 min-w-0">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 bg-primary/10 rounded-xl flex items-center justify-center text-primary shrink-0">
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
                       </svg>
                     </div>
-                    <div>
-                      <span className="block text-[10px] uppercase font-bold text-slate-500 tracking-wider">Pronósticos</span>
-                      <span className="text-xl font-black text-slate-200">{predictedCount}/{matches.length}</span>
+                    <div className="min-w-0">
+                      <span className="hidden sm:block text-[10px] uppercase font-bold text-slate-500 tracking-wider">Pronósticos</span>
+                      <span className="sm:hidden block text-[8px] uppercase font-bold text-slate-500 tracking-tighter">Pronós.</span>
+                      <span className="text-sm sm:text-xl font-black text-slate-200 block truncate">{predictedCount}/{matches.length}</span>
                     </div>
                   </div>
 
-                  <div className={`bg-slate-950/80 border rounded-2xl p-4 flex items-center gap-3 min-w-[120px] ${isOnFire ? 'border-orange-500/40 shadow-lg shadow-orange-500/10' : 'border-slate-800'}`}>
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg ${isOnFire ? 'bg-orange-500/20' : 'bg-slate-800'}`}>
+                  <div className={`bg-slate-950/80 border rounded-2xl p-2.5 sm:p-4 flex items-center gap-2 sm:gap-3 min-w-0 ${isOnFire ? 'border-orange-500/40 shadow-lg shadow-orange-500/10' : 'border-slate-800'}`}>
+                    <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center text-sm sm:text-lg shrink-0 ${isOnFire ? 'bg-orange-500/20' : 'bg-slate-800'}`}>
                       {isOnFire ? '🔥' : '⚡'}
                     </div>
-                    <div>
-                      <span className="block text-[10px] uppercase font-bold text-slate-500 tracking-wider">Racha</span>
-                      <span className={`text-xl font-black ${isOnFire ? 'text-orange-400' : 'text-slate-400'}`}>{currentStreak}</span>
-                      {isOnFire && <span className="block text-[9px] font-bold text-orange-400 uppercase">On Fire!</span>}
+                    <div className="min-w-0">
+                      <span className="block text-[8px] sm:text-[10px] uppercase font-bold text-slate-500 tracking-wider">Racha</span>
+                      <span className={`text-sm sm:text-xl font-black block truncate ${isOnFire ? 'text-orange-400' : 'text-slate-400'}`}>{currentStreak}</span>
+                      {isOnFire && <span className="block text-[7px] sm:text-[9px] font-bold text-orange-400 uppercase tracking-tight">On Fire!</span>}
                     </div>
                   </div>
                 </div>
