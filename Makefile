@@ -3,7 +3,10 @@ PORT ?= 3000
 PIDFILE=.next-dev.pid
 LOGFILE=.next-dev.log
 
-.PHONY: start stop clean clean-all
+.PHONY: start stop clean clean-all dev-app
+
+dev-app:
+	npm run dev
 
 start:
 	@if [ -f "$(PIDFILE)" ] && kill -0 $$(cat "$(PIDFILE)") >/dev/null 2>&1; then \
