@@ -343,6 +343,17 @@ export default function DashboardPage() {
   const [deletingDummies, setDeletingDummies] = useState(false)
   const [adminMode, setAdminMode] = useState(false)
   const [leaderboard, setLeaderboard] = useState<{ username: string; total_points: number; predictions_count: number; rank_change?: number | null }[]>([])
+  const [leaderboardFilter, setLeaderboardFilter] = useState<'top' | 'near'>('top')
+  const [expandedUser, setExpandedUser] = useState<string | null>(null)
+  const [loadingUserDetails, setLoadingUserDetails] = useState<boolean>(false)
+  const [userDetails, setUserDetails] = useState<{
+    exactHits: number
+    drawHits: number
+    winnerHits: number
+    streak: number
+    unlockedBadges: string[]
+  } | null>(null)
+  const [userProfileIds, setUserProfileIds] = useState<Record<string, string>>({})
   const [phaseLeaderboard, setPhaseLeaderboard] = useState<{
     username: string;
     fase1: number;
@@ -902,18 +913,227 @@ export default function DashboardPage() {
     try {
       const { data, error } = await supabase
         .from('user_profiles')
-        .select('username, avatar_type')
+        .select('user_id, username, avatar_type')
       if (error) throw error
       if (data) {
         const profileMap: Record<string, string> = {}
+        const idMap: Record<string, string> = {}
         data.forEach((p) => {
-          profileMap[p.username.toLowerCase()] = p.avatar_type
+          const unameLower = p.username.toLowerCase()
+          profileMap[unameLower] = p.avatar_type
+          idMap[unameLower] = p.user_id
         })
         setUserProfiles(profileMap)
+        setUserProfileIds(idMap)
       }
     } catch (err) {
       console.error('Error fetching user profiles:', err)
     }
+  }
+
+  const handleUserClick = async (targetUsername: string) => {
+    if (expandedUser === targetUsername) {
+      setExpandedUser(null)
+      setUserDetails(null)
+      return
+    }
+    setExpandedUser(targetUsername)
+    setLoadingUserDetails(true)
+    setUserDetails(null)
+    try {
+      const targetUserId = userProfileIds[targetUsername.toLowerCase()]
+      if (!targetUserId) {
+        setLoadingUserDetails(false)
+        return
+      }
+
+      // Query predictions of the target user
+      const { data: preds, error: predsErr } = await supabase
+        .from('predictions')
+        .select('match_id, predicted_home, predicted_away, points')
+        .eq('user_id', targetUserId)
+
+      if (predsErr) throw predsErr
+
+      const { data: badges, error: badgesErr } = await supabase
+        .from('user_badges')
+        .select('badge_key')
+        .eq('user_id', targetUserId)
+
+      const badgeKeys = badges ? badges.map((b: any) => b.badge_key) : []
+
+      // Calculate statistics
+      let exactHits = 0
+      let drawHits = 0
+      let winnerHits = 0
+      
+      const finishedMatches = matches.filter(m => m.status === 'finished')
+      
+      preds?.forEach(p => {
+        const m = finishedMatches.find(m => m.id === p.match_id)
+        if (m && m.home_score !== null && m.away_score !== null) {
+          const isExact = m.home_score === p.predicted_home && m.away_score === p.predicted_away
+          const isDrawCorrect = m.home_score === m.away_score && p.predicted_home === p.predicted_away
+          const isWinnerCorrect = (m.home_score > m.away_score && p.predicted_home > p.predicted_away) || 
+                                  (m.away_score > m.home_score && p.predicted_away > p.predicted_home)
+          
+          if (isExact) {
+            exactHits++
+          } else if (isDrawCorrect) {
+            drawHits++
+          } else if (isWinnerCorrect) {
+            winnerHits++
+          }
+        }
+      })
+
+      // Calculate active streak
+      let streak = 0
+      const finishedPredsSorted = preds
+        ? preds
+            .map(p => {
+              const m = finishedMatches.find(m => m.id === p.match_id)
+              return { ...p, match_date: m ? new Date(m.match_date).getTime() : 0, status: m ? m.status : 'pending' }
+            })
+            .filter(p => p.status === 'finished')
+            .sort((a, b) => b.match_date - a.match_date)
+        : []
+
+      for (let i = 0; i < finishedPredsSorted.length; i++) {
+        if (finishedPredsSorted[i].points > 0) {
+          streak++
+        } else {
+          break
+        }
+      }
+
+      setUserDetails({
+        exactHits,
+        drawHits,
+        winnerHits,
+        streak,
+        unlockedBadges: badgeKeys
+      })
+    } catch (err) {
+      console.error('Error fetching details for user:', err)
+    } finally {
+      setLoadingUserDetails(false)
+    }
+  }
+
+  const renderUserDetailsPanel = () => {
+    if (loadingUserDetails) {
+      return (
+        <div className="flex items-center justify-center py-4 gap-2 text-xs text-slate-450 font-bold">
+          <svg className="animate-spin h-4 w-4 text-primary" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <span>Cargando estadísticas de @{expandedUser}...</span>
+        </div>
+      )
+    }
+
+    if (!userDetails) return null
+
+    return (
+      <div className="space-y-4 animate-fadeIn">
+        <div className="flex items-center justify-between border-b border-slate-900 pb-2">
+          <span className="text-xs uppercase font-extrabold tracking-widest text-primary flex items-center gap-1.5">
+            📊 Perfil de @{expandedUser}
+          </span>
+          <button 
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setExpandedUser(null); setUserDetails(null); }}
+            className="text-xs text-slate-500 hover:text-white cursor-pointer"
+          >
+            Cerrar ✕
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 min-[400px]:grid-cols-4 gap-2.5">
+          <div className="bg-slate-950/85 border border-slate-900 rounded-xl p-2.5 text-center">
+            <span className="block text-[9px] uppercase font-bold text-slate-500">Aciertos Exactos</span>
+            <span className="text-sm font-black text-amber-400 mt-1 block font-mono">🎯 {userDetails.exactHits}</span>
+          </div>
+          <div className="bg-slate-950/85 border border-slate-900 rounded-xl p-2.5 text-center">
+            <span className="block text-[9px] uppercase font-bold text-slate-500">Ganador Acertado</span>
+            <span className="text-sm font-black text-emerald-400 mt-1 block font-mono">⚽ {userDetails.winnerHits}</span>
+          </div>
+          <div className="bg-slate-950/85 border border-slate-900 rounded-xl p-2.5 text-center">
+            <span className="block text-[9px] uppercase font-bold text-slate-500">Empates Acertados</span>
+            <span className="text-sm font-black text-blue-400 mt-1 block font-mono">🤝 {userDetails.drawHits}</span>
+          </div>
+          <div className="bg-slate-950/85 border border-slate-900 rounded-xl p-2.5 text-center">
+            <span className="block text-[9px] uppercase font-bold text-slate-500">Racha Actual</span>
+            <span className="text-sm font-black text-orange-400 mt-1 block font-mono">🔥 {userDetails.streak}</span>
+          </div>
+        </div>
+
+        {/* Unlocked Badges (if any) */}
+        {userDetails.unlockedBadges.length > 0 && (
+          <div className="pt-2 border-t border-slate-900">
+            <span className="text-[10px] uppercase font-black text-slate-500 tracking-wider block mb-2">Insignias Desbloqueadas</span>
+            <div className="flex flex-wrap gap-2">
+              {userDetails.unlockedBadges.map(badgeKey => {
+                const bObj = BADGES_CATALOG.find(b => b.key === badgeKey)
+                if (!bObj) return null
+                return (
+                  <span 
+                    key={badgeKey}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-900 border border-slate-800 text-[10px] font-bold text-slate-300"
+                    title={bObj.description}
+                  >
+                    <span>{bObj.icon}</span>
+                    <span>{bObj.name}</span>
+                  </span>
+                )
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  const getLeaderboardRowStyles = (row: any, idx: number) => {
+    const isMe = row.username.toLowerCase() === username.toLowerCase()
+    const rowOnFire = isMe 
+      ? isOnFire 
+      : (idx === 1 || idx === 4 || (row.total_points > 25 && row.username.charCodeAt(0) % 2 === 0))
+    
+    const rowAvatarType = userProfiles[row.username.toLowerCase()] || 'initials'
+    let avatarEl: React.ReactNode
+    let borderClass = 'border-slate-800'
+    
+    if (rowAvatarType === 'gold') {
+      avatarEl = <video src="/avatar-animado.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover" />
+      borderClass = 'border-amber-500 shadow-sm shadow-amber-500/10'
+    } else if (rowAvatarType === 'fifa') {
+      avatarEl = <video src="/fifaloading.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover" />
+      borderClass = 'border-cyan-500 shadow-sm shadow-cyan-500/10'
+    } else {
+      const charCodeSum = row.username.split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0)
+      const gradients = [
+        'from-purple-900/40 to-indigo-950/40 text-purple-300 border-purple-800/40',
+        'from-blue-900/40 to-cyan-950/40 text-blue-300 border-blue-800/40',
+        'from-teal-900/40 to-emerald-950/40 text-teal-300 border-teal-800/40',
+        'from-pink-900/40 to-rose-950/40 text-pink-300 border-pink-800/40'
+      ]
+      const gradientClass = gradients[charCodeSum % gradients.length]
+      avatarEl = (
+        <div className={`w-full h-full flex items-center justify-center bg-gradient-to-br ${gradientClass} text-[10px] font-black uppercase`}>
+          {row.username.slice(0, 2)}
+        </div>
+      )
+      borderClass = 'border-slate-800 bg-slate-950'
+    }
+
+    if (idx === 0) {
+      borderClass += ' ring-2 ring-yellow-500/25'
+    }
+
+    return { isMe, rowOnFire, avatarEl, borderClass }
   }
 
   const loadMatchesAndPredictions = async (uid: string) => {
@@ -1801,140 +2021,248 @@ export default function DashboardPage() {
 
             {/* Leaderboard Card */}
             <section className="mt-6 glass-card p-6">
-              <h3 className="text-lg font-bold tracking-tight text-white flex items-center gap-2 mb-4">
-                🏆 Tabla de Posiciones
-              </h3>
-              <div className="space-y-2.5">
-                {leaderboard.length === 0 ? (
-                  <p className="text-xs text-slate-500">Aún no hay participantes en la tabla.</p>
-                ) : (
-                  leaderboard.slice(0, 10).map((row, index) => {
-                    const isMe = row.username.toLowerCase() === username.toLowerCase()
-                    
-                    // Streak / On Fire simulation for other users to animate leaderboard
-                    const rowOnFire = isMe 
-                      ? isOnFire 
-                      : (index === 1 || index === 4 || (row.total_points > 25 && row.username.charCodeAt(0) % 2 === 0))
-                    
-                    // Determine avatar elements and borders for the row based on database settings!
-                    const rowAvatarType = userProfiles[row.username.toLowerCase()] || 'initials'
-                    let avatarEl: React.ReactNode
-                    let borderClass = 'border-slate-800'
-                    
-                    if (rowAvatarType === 'gold') {
-                      avatarEl = <video src="/avatar-animado.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover" />
-                      borderClass = 'border-amber-500 shadow-sm shadow-amber-500/10'
-                    } else if (rowAvatarType === 'fifa') {
-                      avatarEl = <video src="/fifaloading.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover" />
-                      borderClass = 'border-cyan-500 shadow-sm shadow-cyan-500/10'
-                    } else {
-                      // Regular initials with deterministic background gradients
-                      const charCodeSum = row.username.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
-                      const gradients = [
-                        'from-purple-900/40 to-indigo-950/40 text-purple-300 border-purple-800/40',
-                        'from-blue-900/40 to-cyan-950/40 text-blue-300 border-blue-800/40',
-                        'from-teal-900/40 to-emerald-950/40 text-teal-300 border-teal-800/40',
-                        'from-pink-900/40 to-rose-950/40 text-pink-300 border-pink-800/40'
-                      ]
-                      const gradientClass = gradients[charCodeSum % gradients.length]
-                      avatarEl = (
-                        <div className={`w-full h-full flex items-center justify-center bg-gradient-to-br ${gradientClass} text-[10px] font-black uppercase`}>
-                          {row.username.slice(0, 2)}
-                        </div>
-                      )
-                      borderClass = 'border-slate-800 bg-slate-950'
-                    }
-
-                    if (index === 0) {
-                      borderClass += ' ring-2 ring-yellow-500/25'
-                    }
-
-                    return (
-                      <div
-                        key={row.username}
-                        className={`relative overflow-hidden flex items-center justify-between p-2.5 sm:p-3.5 rounded-2xl border transition-all duration-300 ${
-                          rowOnFire
-                            ? 'glow-fire-border'
-                            : isMe
-                            ? 'bg-primary/10 border-primary/30 text-primary font-bold shadow-sm shadow-primary/5'
-                            : 'bg-slate-950/40 border-slate-900 hover:border-slate-800 text-slate-300'
-                        }`}
-                      >
-                        {/* Fire Ember Sparks */}
-                        {rowOnFire && (
-                          <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-2xl opacity-60">
-                            <div className="fire-particle" style={{ left: '15%', bottom: '-10px', animationDelay: '0s', transform: 'scale(0.4)', animationDuration: '1.8s' }} />
-                            <div className="fire-particle" style={{ left: '50%', bottom: '-10px', animationDelay: '0.4s', transform: 'scale(0.4)', animationDuration: '2.2s' }} />
-                            <div className="fire-particle" style={{ left: '80%', bottom: '-10px', animationDelay: '0.2s', transform: 'scale(0.4)', animationDuration: '1.5s' }} />
-                          </div>
-                        )}
-
-                        <div className="flex items-center gap-2 sm:gap-3 z-10 min-w-0">
-                          <span className="w-5 sm:w-6 text-xs font-black text-slate-500 text-center flex items-center justify-center shrink-0">
-                            {index === 0 ? '👑' : `#${index + 1}`}
-                          </span>
-                          {row.rank_change !== undefined && row.rank_change !== null && (
-                            <span 
-                              className={`text-[9px] font-black w-7 h-5 flex items-center justify-center gap-0.5 rounded-md border transition-all shrink-0 ${
-                                Number(row.rank_change) > 0 
-                                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-sm shadow-emerald-500/5' 
-                                  : Number(row.rank_change) < 0 
-                                  ? 'bg-rose-500/10 text-rose-400 border-rose-500/20 shadow-sm shadow-rose-500/5' 
-                                  : 'bg-transparent text-slate-600 border-transparent'
-                              }`}
-                              title={
-                                Number(row.rank_change) > 0 
-                                  ? `Subió ${row.rank_change} puesto(s) desde ayer` 
-                                  : Number(row.rank_change) < 0 
-                                  ? `Bajó ${Math.abs(Number(row.rank_change))} puesto(s) desde ayer` 
-                                  : 'Sin cambios de puesto desde ayer'
-                              }
-                            >
-                              {Number(row.rank_change) > 0 
-                                ? `▲${row.rank_change}` 
-                                : Number(row.rank_change) < 0 
-                                ? `▼${Math.abs(Number(row.rank_change))}` 
-                                : '—'
-                              }
-                            </span>
-                          )}
-
-                          {/* Row Avatar Container */}
-                          <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full overflow-hidden border ${borderClass} flex items-center justify-center bg-slate-950 shrink-0 relative hidden min-[360px]:flex`}>
-                            {avatarEl}
-                          </div>
-
-                          <div className="flex flex-col min-w-0">
-                            <span className="text-xs sm:text-sm font-extrabold flex items-center gap-1 min-w-0">
-                              <span className="text-sm sm:text-base shrink-0">{getUserRank(Number(row.total_points)).icon}</span>
-                              <span className="truncate text-slate-200">{row.username}</span>
-                              {isMe && <span className="text-[8px] bg-primary text-slate-950 px-1 py-0.5 rounded font-black shrink-0 uppercase ml-1">Tú</span>}
-                            </span>
-                            {/* Predictions count under name on mobile */}
-                            <span className="text-[9px] text-slate-500 font-bold min-[480px]:hidden mt-0.5">
-                              {row.predictions_count} pronósticos
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 sm:gap-3 z-10 shrink-0">
-                          <span className="text-[10px] text-slate-500 font-bold hidden min-[480px]:inline">
-                            {row.predictions_count} pronós.
-                          </span>
-                          <span className="text-xs sm:text-sm font-black font-mono bg-slate-950/60 px-2 sm:px-2.5 py-1 rounded-xl border border-slate-900/60 text-primary">
-                            {row.total_points} pts
-                          </span>
-                          {rowOnFire && (
-                            <span className="text-xs bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded font-black border border-orange-500/30 hidden min-[400px]:inline">
-                              🔥 On Fire
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                <h3 className="text-lg font-bold tracking-tight text-white flex items-center gap-2">
+                  🏆 Tabla de Posiciones
+                </h3>
+                {leaderboard.length > 0 && (
+                  <div className="flex items-center gap-1 bg-slate-950/60 border border-slate-900 rounded-xl p-1 shrink-0 self-end sm:self-auto">
+                    <button
+                      type="button"
+                      onClick={() => { setLeaderboardFilter('top'); setExpandedUser(null); setUserDetails(null); }}
+                      className={`px-3 py-1.5 rounded-lg text-[10px] sm:text-xs font-black tracking-wider transition-all cursor-pointer ${
+                        leaderboardFilter === 'top'
+                          ? 'bg-primary text-slate-950 shadow-sm'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      TOP 10
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setLeaderboardFilter('near'); setExpandedUser(null); setUserDetails(null); }}
+                      className={`px-3 py-1.5 rounded-lg text-[10px] sm:text-xs font-black tracking-wider transition-all cursor-pointer ${
+                        leaderboardFilter === 'near'
+                          ? 'bg-primary text-slate-950 shadow-sm'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      CERCA DE MÍ
+                    </button>
+                  </div>
                 )}
               </div>
+
+              {leaderboard.length === 0 ? (
+                <p className="text-xs text-slate-500">Aún no hay participantes en la tabla.</p>
+              ) : (
+                <div className="space-y-4">
+                  {/* Visual Podium for Top 3 (only in 'top' filter) */}
+                  {leaderboardFilter === 'top' && (() => {
+                    const positions = [
+                      { rank: 2, data: leaderboard[1], color: 'slate', pedestalClass: 'h-20 sm:h-28 bg-gradient-to-t from-slate-900/60 via-slate-800/20 to-slate-800/35 border-slate-400/40 ring-slate-400', badge: '🥈', scoreBg: 'bg-slate-400 text-slate-950' },
+                      { rank: 1, data: leaderboard[0], color: 'amber', pedestalClass: 'h-24 sm:h-36 bg-gradient-to-t from-amber-950/50 via-amber-900/20 to-amber-900/35 border-amber-500/40 ring-amber-400', badge: '👑', scoreBg: 'bg-amber-500 text-slate-950' },
+                      { rank: 3, data: leaderboard[2], color: 'bronze', pedestalClass: 'h-16 sm:h-22 bg-gradient-to-t from-amber-950/45 via-amber-950/15 to-amber-950/25 border-amber-700/30 ring-amber-700', badge: '🥉', scoreBg: 'bg-amber-750 text-slate-200' }
+                    ]
+                    const activePositions = positions.filter(pos => pos.data !== undefined)
+                    const displayOrder = [2, 1, 3]
+                    const sortedPositions = [...activePositions].sort((a, b) => displayOrder.indexOf(a.rank) - displayOrder.indexOf(b.rank))
+
+                    if (sortedPositions.length === 0) return null
+
+                    return (
+                      <div className="flex items-end justify-center gap-2 sm:gap-4 pt-4 pb-6 max-w-sm sm:max-w-md mx-auto z-10 relative">
+                        {sortedPositions.map((pos) => {
+                          const row = pos.data
+                          const idx = pos.rank - 1
+                          const { isMe, rowOnFire, avatarEl, borderClass } = getLeaderboardRowStyles(row, idx)
+                          const isSelected = expandedUser === row.username
+
+                          return (
+                            <div 
+                              key={row.username} 
+                              onClick={() => handleUserClick(row.username)}
+                              className={`flex flex-col items-center flex-1 cursor-pointer transition-all duration-300 hover:scale-[1.03] group ${
+                                isSelected ? 'scale-[1.03]' : ''
+                              }`}
+                            >
+                              <div className="relative mb-2 flex flex-col items-center">
+                                {pos.rank === 1 ? (
+                                  <span className="text-xl sm:text-2xl animate-bounce duration-[2000ms] -mb-1 z-20">👑</span>
+                                ) : (
+                                  <span className="text-sm sm:text-base -mb-0.5 z-20">{pos.badge}</span>
+                                )}
+
+                                <div className={`relative w-11 h-11 sm:w-14 sm:h-14 rounded-full border-2 overflow-hidden bg-slate-950 flex items-center justify-center transition-all ${
+                                  pos.rank === 1 ? 'ring-4 ring-amber-400/40 w-13 h-13 sm:w-16 sm:h-16' : 'ring-2 ring-slate-800'
+                                } ${borderClass}`}>
+                                  {avatarEl}
+                                  {rowOnFire && (
+                                    <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-full opacity-60">
+                                      <div className="fire-particle" style={{ left: '30%', bottom: '-5px', animationDelay: '0s', transform: 'scale(0.35)', animationDuration: '1.5s' }} />
+                                      <div className="fire-particle" style={{ left: '70%', bottom: '-5px', animationDelay: '0.3s', transform: 'scale(0.35)', animationDuration: '1.8s' }} />
+                                    </div>
+                                  )}
+                                </div>
+
+                                {rowOnFire && (
+                                  <span className="absolute -top-1.5 -right-1.5 text-[8px] bg-orange-500 text-white font-black px-1 py-0.2 rounded border border-orange-400 animate-pulse">
+                                    🔥
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className={`w-full rounded-t-2xl border-t border-x flex flex-col items-center justify-between p-2 sm:p-3 transition-all duration-300 ${pos.pedestalClass} ${
+                                isSelected ? 'border-primary/60 ring-2 ring-primary/20 shadow-lg shadow-primary/5 bg-slate-900/60' : 'border-slate-800/40 bg-slate-950/20'
+                              }`}>
+                                <div className="text-center w-full min-w-0">
+                                  <span className="block text-[10px] sm:text-xs font-black text-slate-200 truncate max-w-full">
+                                    {row.username}
+                                  </span>
+                                  {isMe && (
+                                    <span className="inline-block text-[7px] bg-primary text-slate-950 px-1 py-0.2 rounded font-black uppercase mt-0.5">
+                                      Tú
+                                    </span>
+                                  )}
+                                </div>
+
+                                <span className={`text-[10px] sm:text-xs font-black font-mono px-2 py-0.5 rounded-lg ${pos.scoreBg} mt-1.5`}>
+                                  {row.total_points} pts
+                                </span>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )
+                  })()}
+
+                  {/* Expanded details for podium users */}
+                  {leaderboardFilter === 'top' && expandedUser && leaderboard.slice(0, 3).some(r => r.username === expandedUser) && (
+                    <div className="bg-slate-950/60 border border-slate-900 rounded-2xl p-4 animate-fadeIn">
+                      {renderUserDetailsPanel()}
+                    </div>
+                  )}
+
+                  {/* Flat List */}
+                  <div className="space-y-2">
+                    {(() => {
+                      let displayedRows: { row: typeof leaderboard[0]; absoluteRank: number }[] = []
+                      if (leaderboardFilter === 'top') {
+                        displayedRows = leaderboard.slice(3, 10).map((row, idx) => ({ row, absoluteRank: idx + 3 }))
+                      } else {
+                        const myIndex = leaderboard.findIndex(row => row.username.toLowerCase() === username.toLowerCase())
+                        if (myIndex !== -1) {
+                          const startIdx = Math.max(0, myIndex - 2)
+                          const endIdx = Math.min(leaderboard.length, myIndex + 3)
+                          displayedRows = leaderboard.slice(startIdx, endIdx).map((row, idx) => ({ row, absoluteRank: startIdx + idx }))
+                        } else {
+                          displayedRows = leaderboard.slice(0, 10).map((row, idx) => ({ row, absoluteRank: idx }))
+                        }
+                      }
+
+                      return displayedRows.map(({ row, absoluteRank }) => {
+                        const { isMe, rowOnFire, avatarEl, borderClass } = getLeaderboardRowStyles(row, absoluteRank)
+                        const isSelected = expandedUser === row.username
+
+                        return (
+                          <div key={row.username} className="w-full">
+                            <div
+                              onClick={() => handleUserClick(row.username)}
+                              className={`relative overflow-hidden flex items-center justify-between p-2 sm:p-3 rounded-2xl border transition-all duration-300 cursor-pointer ${
+                                isSelected
+                                  ? 'border-primary/60 bg-slate-900/60 shadow-lg shadow-primary/5'
+                                  : rowOnFire
+                                  ? 'glow-fire-border hover:bg-slate-950/60'
+                                  : isMe
+                                  ? 'bg-primary/10 border-primary/30 text-primary font-bold shadow-sm shadow-primary/5 hover:bg-primary/15'
+                                  : 'bg-slate-950/40 border-slate-900 hover:border-slate-800 text-slate-300 hover:bg-slate-950/60'
+                              }`}
+                            >
+                              {/* Fire Ember Sparks */}
+                              {rowOnFire && (
+                                <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-2xl opacity-60">
+                                  <div className="fire-particle" style={{ left: '15%', bottom: '-10px', animationDelay: '0s', transform: 'scale(0.4)', animationDuration: '1.8s' }} />
+                                  <div className="fire-particle" style={{ left: '50%', bottom: '-10px', animationDelay: '0.4s', transform: 'scale(0.4)', animationDuration: '2.2s' }} />
+                                  <div className="fire-particle" style={{ left: '80%', bottom: '-10px', animationDelay: '0.2s', transform: 'scale(0.4)', animationDuration: '1.5s' }} />
+                                </div>
+                              )}
+
+                              <div className="flex items-center gap-1.5 sm:gap-3 z-10 min-w-0">
+                                <span className="w-5 sm:w-6 text-[10px] sm:text-xs font-black text-slate-500 text-center flex items-center justify-center shrink-0">
+                                  {`#${absoluteRank + 1}`}
+                                </span>
+                                {row.rank_change !== undefined && row.rank_change !== null && (
+                                  <span 
+                                    className={`text-[8px] sm:text-[9px] font-black w-6 sm:w-7 h-4 sm:h-5 flex items-center justify-center gap-0.5 rounded-md border transition-all shrink-0 ${
+                                      Number(row.rank_change) > 0 
+                                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-sm shadow-emerald-500/5' 
+                                        : Number(row.rank_change) < 0 
+                                        ? 'bg-rose-500/10 text-rose-400 border-rose-500/20 shadow-sm shadow-rose-500/5' 
+                                        : 'bg-transparent text-slate-600 border-transparent'
+                                    }`}
+                                    title={
+                                      Number(row.rank_change) > 0 
+                                        ? `Subió ${row.rank_change} puesto(s) desde ayer` 
+                                        : Number(row.rank_change) < 0 
+                                        ? `Bajó ${Math.abs(Number(row.rank_change))} puesto(s) desde ayer` 
+                                        : 'Sin cambios de puesto desde ayer'
+                                    }
+                                  >
+                                    {Number(row.rank_change) > 0 
+                                      ? `▲${row.rank_change}` 
+                                      : Number(row.rank_change) < 0 
+                                      ? `▼${Math.abs(Number(row.rank_change))}` 
+                                      : '—'
+                                    }
+                                  </span>
+                                )}
+
+                                {/* Row Avatar Container */}
+                                <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full overflow-hidden border ${borderClass} flex items-center justify-center bg-slate-950 shrink-0 relative hidden min-[360px]:flex`}>
+                                  {avatarEl}
+                                </div>
+
+                                <div className="flex flex-col min-w-0">
+                                  <span className="text-[11px] sm:text-sm font-extrabold flex items-center gap-1 min-w-0">
+                                    <span className="text-xs sm:text-sm shrink-0">{getUserRank(Number(row.total_points)).icon}</span>
+                                    <span className="truncate text-slate-200">{row.username}</span>
+                                    {isMe && <span className="text-[8px] bg-primary text-slate-950 px-1 py-0.5 rounded font-black shrink-0 uppercase ml-1">Tú</span>}
+                                  </span>
+                                  <span className="text-[8px] sm:text-[9px] text-slate-500 font-bold min-[480px]:hidden mt-0.5">
+                                    {row.predictions_count} pronósticos
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-1.5 sm:gap-3 z-10 shrink-0">
+                                <span className="text-[9px] text-slate-500 font-bold hidden min-[480px]:inline">
+                                  {row.predictions_count} pronós.
+                                </span>
+                                <span className="text-[10px] sm:text-xs font-black font-mono bg-slate-950/60 px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-xl border border-slate-900/60 text-primary">
+                                  {row.total_points} pts
+                                </span>
+                                {rowOnFire && (
+                                  <span className="text-[8px] sm:text-xs bg-orange-500/20 text-orange-400 px-1 sm:px-1.5 py-0.2 sm:py-0.5 rounded font-black border border-orange-500/30 hidden min-[400px]:inline">
+                                    🔥 On Fire
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Details panel rendered inline directly under the expanded user row */}
+                            {isSelected && (
+                              <div className="mt-2 p-4 bg-slate-950/60 border border-slate-900 rounded-2xl animate-fadeIn">
+                                {renderUserDetailsPanel()}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })
+                    })()}
+                  </div>
+                </div>
+              )}
             </section>
 
             {/* Matches Section Header & Filters */}
