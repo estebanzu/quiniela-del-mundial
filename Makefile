@@ -3,12 +3,24 @@ PORT ?= 3000
 PIDFILE=.next-dev.pid
 LOGFILE=.next-dev.log
 
-.PHONY: start stop clean clean-all dev-app
+.PHONY: help dev-app start stop clean clean-all build lint start-prod
 
-dev-app:
+help: ## Show this help message
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
+
+dev-app: ## Start dev server in the foreground
 	npm run dev
 
-start:
+build: ## Build optimized production bundle
+	npm run build
+
+lint: ## Run code linter
+	npm run lint
+
+start-prod: ## Run production build server locally
+	npm run start
+
+start: ## Start dev server in the background (PID log)
 	@if [ -f "$(PIDFILE)" ] && kill -0 $$(cat "$(PIDFILE)") >/dev/null 2>&1; then \
 		echo "⚡ Next.js is already running (PID $$(cat $(PIDFILE)))"; \
 		echo "   http://$(HOST):$(PORT)"; \
@@ -26,7 +38,7 @@ start:
 		exit 1; \
 	fi
 
-stop:
+stop: ## Stop dev server running in background
 	@if [ -f "$(PIDFILE)" ]; then \
 		pid=$$(cat "$(PIDFILE)"); \
 		if kill -0 $$pid >/dev/null 2>&1; then \
@@ -53,11 +65,11 @@ stop:
 		fi; \
 	fi
 
-clean: stop
+clean: stop ## Stop server and remove build files/logs
 	rm -rf .next
 	rm -f "$(LOGFILE)"
 	@echo "🧹 Cleaned .next and logs."
 
-clean-all: clean
+clean-all: clean ## Clean files and remove node_modules
 	rm -rf node_modules
 	@echo "🧹 Removed node_modules."
