@@ -1851,7 +1851,7 @@ export default function DashboardPage() {
                     return (
                       <div
                         key={row.username}
-                        className={`relative overflow-hidden flex items-center justify-between p-3.5 rounded-2xl border transition-all duration-300 ${
+                        className={`relative overflow-hidden flex items-center justify-between p-2.5 sm:p-3.5 rounded-2xl border transition-all duration-300 ${
                           rowOnFire
                             ? 'glow-fire-border'
                             : isMe
@@ -1868,13 +1868,13 @@ export default function DashboardPage() {
                           </div>
                         )}
 
-                        <div className="flex items-center gap-3 z-10">
-                          <span className="w-6 text-xs font-black text-slate-500 text-center flex items-center justify-center">
+                        <div className="flex items-center gap-2 sm:gap-3 z-10 min-w-0">
+                          <span className="w-5 sm:w-6 text-xs font-black text-slate-500 text-center flex items-center justify-center shrink-0">
                             {index === 0 ? '👑' : `#${index + 1}`}
                           </span>
                           {row.rank_change !== undefined && row.rank_change !== null && (
                             <span 
-                              className={`text-[9px] font-black w-7 h-5 flex items-center justify-center gap-0.5 rounded-md border transition-all ${
+                              className={`text-[9px] font-black w-7 h-5 flex items-center justify-center gap-0.5 rounded-md border transition-all shrink-0 ${
                                 Number(row.rank_change) > 0 
                                   ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-sm shadow-emerald-500/5' 
                                   : Number(row.rank_change) < 0 
@@ -1899,23 +1899,35 @@ export default function DashboardPage() {
                           )}
 
                           {/* Row Avatar Container */}
-                          <div className={`w-8 h-8 rounded-full overflow-hidden border ${borderClass} flex items-center justify-center bg-slate-950 shrink-0 relative`}>
+                          <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full overflow-hidden border ${borderClass} flex items-center justify-center bg-slate-950 shrink-0 relative hidden min-[360px]:flex`}>
                             {avatarEl}
                           </div>
 
-                          <span className="text-sm font-extrabold truncate flex items-center gap-1.5">
-                            <span className="text-base">{getUserRank(Number(row.total_points)).icon}</span>
-                            {row.username} {isMe && <span className="text-[10px] bg-primary text-slate-950 px-1.5 py-0.5 rounded font-black ml-1 uppercase">Tú</span>}
-                            {rowOnFire && <span className="text-[10px] bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded font-black ml-1 border border-orange-500/30">🔥 On Fire</span>}
-                          </span>
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-xs sm:text-sm font-extrabold flex items-center gap-1 min-w-0">
+                              <span className="text-sm sm:text-base shrink-0">{getUserRank(Number(row.total_points)).icon}</span>
+                              <span className="truncate text-slate-200">{row.username}</span>
+                              {isMe && <span className="text-[8px] bg-primary text-slate-950 px-1 py-0.5 rounded font-black shrink-0 uppercase ml-1">Tú</span>}
+                            </span>
+                            {/* Predictions count under name on mobile */}
+                            <span className="text-[9px] text-slate-500 font-bold min-[480px]:hidden mt-0.5">
+                              {row.predictions_count} pronósticos
+                            </span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-3 z-10">
-                          <span className="text-[10px] text-slate-500 font-bold">
+
+                        <div className="flex items-center gap-2 sm:gap-3 z-10 shrink-0">
+                          <span className="text-[10px] text-slate-500 font-bold hidden min-[480px]:inline">
                             {row.predictions_count} pronós.
                           </span>
-                          <span className="text-sm font-black font-mono">
+                          <span className="text-xs sm:text-sm font-black font-mono bg-slate-950/60 px-2 sm:px-2.5 py-1 rounded-xl border border-slate-900/60 text-primary">
                             {row.total_points} pts
                           </span>
+                          {rowOnFire && (
+                            <span className="text-xs bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded font-black border border-orange-500/30 hidden min-[400px]:inline">
+                              🔥 On Fire
+                            </span>
+                          )}
                         </div>
                       </div>
                     )
@@ -2542,7 +2554,7 @@ export default function DashboardPage() {
                             <td className="py-3 px-2 sm:px-4">
                               <div className="flex items-center gap-1 sm:gap-2">
                                 <span className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${isCurrentUser ? 'bg-primary animate-pulse' : 'bg-slate-700'}`}></span>
-                                <span className="truncate max-w-[70px] xs:max-w-[120px]">{row.username || 'Desconocido'}</span>
+                                <span className="truncate max-w-[70px] min-[380px]:max-w-[120px]">{row.username || 'Desconocido'}</span>
                                 {isCurrentUser && <span className="text-[8px] sm:text-[9px] uppercase tracking-wider font-extrabold px-1 sm:px-1.5 py-0.5 rounded bg-primary/20 text-primary border border-primary/30 shrink-0">Tú</span>}
                               </div>
                             </td>

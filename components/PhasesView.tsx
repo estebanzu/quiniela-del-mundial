@@ -87,7 +87,7 @@ export function PhasesView({ phaseLeaderboard, username }: PhasesViewProps) {
                       <td className="py-3 px-2 sm:px-4">
                         <div className="flex items-center gap-1 sm:gap-2">
                           <span className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${isCurrentUser ? 'bg-primary animate-pulse' : 'bg-slate-700'}`}></span>
-                          <span className="truncate max-w-[70px] xs:max-w-[120px]">{row.username || 'Desconocido'}</span>
+                          <span className="truncate max-w-[70px] min-[380px]:max-w-[120px]">{row.username || 'Desconocido'}</span>
                           {isCurrentUser && <span className="text-[8px] sm:text-[9px] uppercase tracking-wider font-extrabold px-1 sm:px-1.5 py-0.5 rounded bg-primary/20 text-primary border border-primary/30 shrink-0">Tú</span>}
                         </div>
                       </td>
