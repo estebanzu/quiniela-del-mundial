@@ -279,7 +279,7 @@ export function AdminView({
       </div>
 
       {/* Users registered table card */}
-      <div className="glass-card p-6 mt-6">
+      <div className="glass-card p-3.5 sm:p-6 mt-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
             <h3 className="text-lg font-bold text-white flex items-center gap-2">
@@ -310,10 +310,10 @@ export function AdminView({
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="border-b border-slate-900 text-slate-400 uppercase font-black tracking-wider text-[10px]">
-                <th className="pb-3 pr-4">Correo Electrónico</th>
-                <th className="pb-3 px-4">Fecha de Registro</th>
-                <th className="pb-3 px-4">Último Acceso</th>
-                <th className="pb-3 pl-4 text-right">Acciones</th>
+                <th className="pb-3 pr-2 sm:pr-4">Correo Electrónico</th>
+                <th className="pb-3 px-2 sm:px-4 hidden md:table-cell">Fecha de Registro</th>
+                <th className="pb-3 px-2 sm:px-4 hidden sm:table-cell">Último Acceso</th>
+                <th className="pb-3 pl-2 sm:pl-4 text-right">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-900/40 text-slate-300">
@@ -330,14 +330,18 @@ export function AdminView({
               ) : (
                 filteredUsers.map((u) => (
                   <tr key={u.id} className="hover:bg-slate-950/20 transition-colors">
-                    <td className="py-3.5 pr-4 font-extrabold text-slate-200">{u.email}</td>
-                    <td className="py-3.5 px-4 font-mono text-slate-400">
+                    <td className="py-3 pr-2 sm:pr-4 font-extrabold text-slate-200">
+                      <span className="max-w-[120px] sm:max-w-none truncate block" title={u.email}>
+                        {u.email}
+                      </span>
+                    </td>
+                    <td className="py-3 px-2 sm:px-4 font-mono text-slate-400 hidden md:table-cell">
                       {new Date(u.created_at).toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </td>
-                    <td className="py-3.5 px-4 font-mono text-slate-400">
+                    <td className="py-3 px-2 sm:px-4 font-mono text-slate-400 hidden sm:table-cell">
                       {u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleDateString('es-ES', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Nunca'}
                     </td>
-                    <td className="py-3.5 pl-4 text-right">
+                    <td className="py-3 pl-2 sm:pl-4 text-right">
                       <div className="flex items-center justify-end gap-2.5">
                         <button
                           type="button"

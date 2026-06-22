@@ -2344,7 +2344,7 @@ export default function DashboardPage() {
                 </button>
 
                 {/* Central Card (Wider) */}
-                <div className="collectible-card w-full p-6 md:p-8 flex flex-col justify-between relative transition-all duration-300 bg-slate-900/60 border border-slate-800/80 rounded-3xl backdrop-blur-md overflow-hidden">
+                <div className="collectible-card w-full min-w-0 p-3.5 sm:p-6 md:p-8 flex flex-col justify-between relative transition-all duration-300 bg-slate-900/60 border border-slate-800/80 rounded-3xl backdrop-blur-md overflow-hidden">
                   <div>
                     {/* Header of Nav Card */}
                     <div className="flex items-center justify-between pb-4 border-b border-slate-800/60 mb-6">
@@ -2361,16 +2361,16 @@ export default function DashboardPage() {
                       <table className="w-full text-left border-collapse text-xs md:text-sm">
                         <thead>
                           <tr className="border-b border-slate-850 text-slate-450 font-bold uppercase text-[10px] md:text-xs tracking-wider">
-                            <th className="py-3 px-2 text-center w-12">Pos</th>
-                            <th className="py-3 px-2">Equipo</th>
-                            <th className="py-3 px-2 text-center w-12" title="Partidos Jugados">PJ</th>
-                            <th className="py-3 px-2 text-center w-10 hidden sm:table-cell" title="Ganados">G</th>
-                            <th className="py-3 px-2 text-center w-10 hidden sm:table-cell" title="Empatados">E</th>
-                            <th className="py-3 px-2 text-center w-10 hidden sm:table-cell" title="Perdidos">P</th>
-                            <th className="py-3 px-2 text-center w-14 hidden sm:table-cell" title="Goles a Favor">GF</th>
-                            <th className="py-3 px-2 text-center w-14 hidden sm:table-cell" title="Goles en Contra">GC</th>
-                            <th className="py-3 px-2 text-center w-12" title="Diferencia de Goles">DG</th>
-                            <th className="py-3 px-3 text-center w-16 text-primary font-black" title="Puntos">Pts</th>
+                            <th className="py-3 px-1 sm:px-2 text-center w-8 sm:w-12">Pos</th>
+                            <th className="py-3 px-1 sm:px-2">Equipo</th>
+                            <th className="py-3 px-1 sm:px-2 text-center w-8 sm:w-12" title="Partidos Jugados">PJ</th>
+                            <th className="py-3 px-1 sm:px-2 text-center w-10 hidden sm:table-cell" title="Ganados">G</th>
+                            <th className="py-3 px-1 sm:px-2 text-center w-10 hidden sm:table-cell" title="Empatados">E</th>
+                            <th className="py-3 px-1 sm:px-2 text-center w-10 hidden sm:table-cell" title="Perdidos">P</th>
+                            <th className="py-3 px-1 sm:px-2 text-center w-14 hidden sm:table-cell" title="Goles a Favor">GF</th>
+                            <th className="py-3 px-1 sm:px-2 text-center w-14 hidden sm:table-cell" title="Goles en Contra">GC</th>
+                            <th className="py-3 px-1 sm:px-2 text-center w-8 sm:w-12" title="Diferencia de Goles">DG</th>
+                            <th className="py-3 px-1.5 sm:px-3 text-center w-12 sm:w-16 text-primary font-black" title="Puntos">Pts</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -2390,27 +2390,27 @@ export default function DashboardPage() {
 
                             return (
                               <tr key={teamStats.name} className={rowClass}>
-                                <td className="py-3.5 px-2 text-center">
+                                <td className="py-3 px-1 sm:px-2 text-center">
                                   <div className={posClass}>{idx + 1}</div>
                                 </td>
-                                <td className="py-3.5 px-2 font-bold text-slate-200">
-                                  <span className="flex items-center gap-3">
-                                    <span className="text-xl select-none" role="img" aria-label={`Bandera de ${teamStats.name}`}>
+                                <td className="py-3 px-1 sm:px-2 font-bold text-slate-200">
+                                  <span className="flex items-center gap-1.5 sm:gap-3">
+                                    <span className="text-lg sm:text-xl select-none" role="img" aria-label={`Bandera de ${teamStats.name}`}>
                                       {teamStats.flag}
                                     </span>
-                                    <span className="text-sm md:text-base font-semibold">{teamStats.name}</span>
+                                    <span className="text-xs sm:text-sm md:text-base font-semibold">{teamStats.name}</span>
                                   </span>
                                 </td>
-                                <td className="py-3.5 px-2 text-center font-bold text-slate-300">{teamStats.pj}</td>
-                                <td className="py-3.5 px-2 text-center text-slate-400 hidden sm:table-cell">{teamStats.pg}</td>
-                                <td className="py-3.5 px-2 text-center text-slate-400 hidden sm:table-cell">{teamStats.pe}</td>
-                                <td className="py-3.5 px-2 text-center text-slate-400 hidden sm:table-cell">{teamStats.pp}</td>
-                                <td className="py-3.5 px-2 text-center text-slate-400 hidden sm:table-cell">{teamStats.gf}</td>
-                                <td className="py-3.5 px-2 text-center text-slate-400 hidden sm:table-cell">{teamStats.gc}</td>
-                                <td className={`py-3.5 px-2 text-center font-bold ${teamStats.gd > 0 ? 'text-emerald-400' : teamStats.gd < 0 ? 'text-rose-500' : 'text-slate-450'}`}>
+                                <td className="py-3 px-1 sm:px-2 text-center font-bold text-slate-300">{teamStats.pj}</td>
+                                <td className="py-3 px-1 sm:px-2 text-center text-slate-400 hidden sm:table-cell">{teamStats.pg}</td>
+                                <td className="py-3 px-1 sm:px-2 text-center text-slate-400 hidden sm:table-cell">{teamStats.pe}</td>
+                                <td className="py-3 px-1 sm:px-2 text-center text-slate-400 hidden sm:table-cell">{teamStats.pp}</td>
+                                <td className="py-3 px-1 sm:px-2 text-center text-slate-400 hidden sm:table-cell">{teamStats.gf}</td>
+                                <td className="py-3 px-1 sm:px-2 text-center text-slate-400 hidden sm:table-cell">{teamStats.gc}</td>
+                                <td className={`py-3 px-1 sm:px-2 text-center font-bold ${teamStats.gd > 0 ? 'text-emerald-400' : teamStats.gd < 0 ? 'text-rose-500' : 'text-slate-450'}`}>
                                   {teamStats.gd > 0 ? `+${teamStats.gd}` : teamStats.gd}
                                 </td>
-                                <td className="py-3.5 px-3 text-center font-black text-primary text-base">{teamStats.pts}</td>
+                                <td className="py-3 px-1.5 sm:px-3 text-center font-black text-primary text-sm sm:text-base">{teamStats.pts}</td>
                               </tr>
                             )
                           })}
@@ -2502,15 +2502,15 @@ export default function DashboardPage() {
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
                     <tr className="border-b border-slate-800 bg-slate-900/60 text-slate-400 font-bold uppercase text-xs tracking-wider">
-                      <th className="py-4 px-4 text-center w-16">Pos</th>
-                      <th className="py-4 px-4">Usuario</th>
-                      <th className="py-4 px-2 text-center w-28" title="Fase de Grupos (Partidos 1-72)">Fase 1 (Grupos)</th>
-                      <th className="py-4 px-2 text-center w-28" title="Dieciseisavos (Partidos 73-88)">Fase 2 (16avos)</th>
-                      <th className="py-4 px-2 text-center w-28" title="Octavos (Partidos 89-96)">Fase 3 (Octavos)</th>
-                      <th className="py-4 px-2 text-center w-28" title="Cuartos (Partidos 97-100)">Fase 4 (Cuartos)</th>
-                      <th className="py-4 px-2 text-center w-28" title="Semifinales (Partidos 101-102)">Fase 5 (Semis)</th>
-                      <th className="py-4 px-2 text-center w-28" title="Tercer Puesto y Final (Partidos 103-104)">Fase 6 (Finales)</th>
-                      <th className="py-4 px-4 text-center text-primary font-black w-28">Total Pts</th>
+                      <th className="py-4 px-2 sm:px-4 text-center w-10 sm:w-16">Pos</th>
+                      <th className="py-4 px-2 sm:px-4">Usuario</th>
+                      <th className="py-4 px-1 sm:px-2 text-center w-12 sm:w-28" title="Fase de Grupos (Partidos 1-72)"><span className="hidden md:inline">Fase 1 (Grupos)</span><span className="md:hidden">F1</span></th>
+                      <th className="py-4 px-1 sm:px-2 text-center w-12 sm:w-28" title="Dieciseisavos (Partidos 73-88)"><span className="hidden md:inline">Fase 2 (16avos)</span><span className="md:hidden">F2</span></th>
+                      <th className="py-4 px-1 sm:px-2 text-center w-12 sm:w-28" title="Octavos (Partidos 89-96)"><span className="hidden md:inline">Fase 3 (Octavos)</span><span className="md:hidden">F3</span></th>
+                      <th className="py-4 px-1 sm:px-2 text-center w-12 sm:w-28" title="Cuartos (Partidos 97-100)"><span className="hidden md:inline">Fase 4 (Cuartos)</span><span className="md:hidden">F4</span></th>
+                      <th className="py-4 px-1 sm:px-2 text-center w-12 sm:w-28" title="Semifinales (Partidos 101-102)"><span className="hidden md:inline">Fase 5 (Semis)</span><span className="md:hidden">F5</span></th>
+                      <th className="py-4 px-1 sm:px-2 text-center w-12 sm:w-28" title="Tercer Puesto y Final (Partidos 103-104)"><span className="hidden md:inline">Fase 6 (Finales)</span><span className="md:hidden">F6</span></th>
+                      <th className="py-4 px-2 sm:px-4 text-center text-primary font-black w-16 sm:w-28"><span className="hidden sm:inline">Total Pts</span><span className="sm:hidden">Total</span></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2538,40 +2538,40 @@ export default function DashboardPage() {
                               isCurrentUser ? 'bg-primary/5 font-extrabold text-white' : 'text-slate-300'
                             }`}
                           >
-                            <td className="py-3.5 px-4 text-center font-bold">{posEl}</td>
-                            <td className="py-3.5 px-4">
-                              <div className="flex items-center gap-2">
-                                <span className={`w-2 h-2 rounded-full ${isCurrentUser ? 'bg-primary animate-pulse' : 'bg-slate-700'}`}></span>
-                                <span className="truncate max-w-[120px]">{row.username || 'Desconocido'}</span>
-                                {isCurrentUser && <span className="text-[9px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded bg-primary/20 text-primary border border-primary/30 shrink-0">Tú</span>}
+                            <td className="py-3 px-2 sm:px-4 text-center font-bold">{posEl}</td>
+                            <td className="py-3 px-2 sm:px-4">
+                              <div className="flex items-center gap-1 sm:gap-2">
+                                <span className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${isCurrentUser ? 'bg-primary animate-pulse' : 'bg-slate-700'}`}></span>
+                                <span className="truncate max-w-[70px] xs:max-w-[120px]">{row.username || 'Desconocido'}</span>
+                                {isCurrentUser && <span className="text-[8px] sm:text-[9px] uppercase tracking-wider font-extrabold px-1 sm:px-1.5 py-0.5 rounded bg-primary/20 text-primary border border-primary/30 shrink-0">Tú</span>}
                               </div>
                             </td>
                             {/* Phase 1 */}
-                            <td className={`py-3.5 px-2 text-center font-mono ${Number(row.fase1) === maxes.f1 && maxes.f1 > 0 ? 'text-amber-400 font-bold' : ''}`}>
+                            <td className={`py-3 px-1 sm:px-2 text-center font-mono ${Number(row.fase1) === maxes.f1 && maxes.f1 > 0 ? 'text-amber-400 font-bold' : ''}`}>
                               {row.fase1} {Number(row.fase1) === maxes.f1 && maxes.f1 > 0 ? '🏆' : ''}
                             </td>
                             {/* Phase 2 */}
-                            <td className={`py-3.5 px-2 text-center font-mono ${Number(row.fase2) === maxes.f2 && maxes.f2 > 0 ? 'text-amber-400 font-bold' : ''}`}>
+                            <td className={`py-3 px-1 sm:px-2 text-center font-mono ${Number(row.fase2) === maxes.f2 && maxes.f2 > 0 ? 'text-amber-400 font-bold' : ''}`}>
                               {row.fase2} {Number(row.fase2) === maxes.f2 && maxes.f2 > 0 ? '🏆' : ''}
                             </td>
                             {/* Phase 3 */}
-                            <td className={`py-3.5 px-2 text-center font-mono ${Number(row.fase3) === maxes.f3 && maxes.f3 > 0 ? 'text-amber-400 font-bold' : ''}`}>
+                            <td className={`py-3 px-1 sm:px-2 text-center font-mono ${Number(row.fase3) === maxes.f3 && maxes.f3 > 0 ? 'text-amber-400 font-bold' : ''}`}>
                               {row.fase3} {Number(row.fase3) === maxes.f3 && maxes.f3 > 0 ? '🏆' : ''}
                             </td>
                             {/* Phase 4 */}
-                            <td className={`py-3.5 px-2 text-center font-mono ${Number(row.fase4) === maxes.f4 && maxes.f4 > 0 ? 'text-amber-400 font-bold' : ''}`}>
+                            <td className={`py-3 px-1 sm:px-2 text-center font-mono ${Number(row.fase4) === maxes.f4 && maxes.f4 > 0 ? 'text-amber-400 font-bold' : ''}`}>
                               {row.fase4} {Number(row.fase4) === maxes.f4 && maxes.f4 > 0 ? '🏆' : ''}
                             </td>
                             {/* Phase 5 */}
-                            <td className={`py-3.5 px-2 text-center font-mono ${Number(row.fase5) === maxes.f5 && maxes.f5 > 0 ? 'text-amber-400 font-bold' : ''}`}>
+                            <td className={`py-3 px-1 sm:px-2 text-center font-mono ${Number(row.fase5) === maxes.f5 && maxes.f5 > 0 ? 'text-amber-400 font-bold' : ''}`}>
                               {row.fase5} {Number(row.fase5) === maxes.f5 && maxes.f5 > 0 ? '🏆' : ''}
                             </td>
                             {/* Phase 6 */}
-                            <td className={`py-3.5 px-2 text-center font-mono ${Number(row.fase6) === maxes.f6 && maxes.f6 > 0 ? 'text-amber-400 font-bold' : ''}`}>
+                            <td className={`py-3 px-1 sm:px-2 text-center font-mono ${Number(row.fase6) === maxes.f6 && maxes.f6 > 0 ? 'text-amber-400 font-bold' : ''}`}>
                               {row.fase6} {Number(row.fase6) === maxes.f6 && maxes.f6 > 0 ? '🏆' : ''}
                             </td>
                             {/* Total points */}
-                            <td className="py-3.5 px-4 text-center font-black text-primary text-base font-mono bg-slate-900/20">{row.total_points}</td>
+                            <td className="py-3 px-2 sm:px-4 text-center font-black text-primary text-sm sm:text-base font-mono bg-slate-900/20">{row.total_points}</td>
                           </tr>
                         )
                       })
@@ -3578,7 +3578,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Users registered table card */}
-            <div className="glass-card p-6 mt-6">
+            <div className="glass-card p-3.5 sm:p-6 mt-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                 <div>
                   <h3 className="text-lg font-bold text-white flex items-center gap-2">
@@ -3603,16 +3603,16 @@ export default function DashboardPage() {
                   </svg>
                 </div>
               </div>
-
+ 
               {/* Users Table */}
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="border-b border-slate-900 text-slate-400 uppercase font-black tracking-wider text-[10px]">
-                      <th className="pb-3 pr-4">Correo Electrónico</th>
-                      <th className="pb-3 px-4">Fecha de Registro</th>
-                      <th className="pb-3 px-4">Último Acceso</th>
-                      <th className="pb-3 pl-4 text-right">Acciones</th>
+                      <th className="pb-3 pr-2 sm:pr-4">Correo Electrónico</th>
+                      <th className="pb-3 px-2 sm:px-4 hidden md:table-cell">Fecha de Registro</th>
+                      <th className="pb-3 px-2 sm:px-4 hidden sm:table-cell">Último Acceso</th>
+                      <th className="pb-3 pl-2 sm:pl-4 text-right">Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-900/40 text-slate-300">
@@ -3631,10 +3631,12 @@ export default function DashboardPage() {
                     ) : (
                       filteredUsers.map((u) => (
                         <tr key={u.id} className="hover:bg-slate-950/20 transition-colors">
-                          <td className="py-3.5 pr-4 font-extrabold text-slate-200">
-                            {u.email}
+                          <td className="py-3 pr-2 sm:pr-4 font-extrabold text-slate-200">
+                            <span className="max-w-[120px] sm:max-w-none truncate block" title={u.email}>
+                              {u.email}
+                            </span>
                           </td>
-                          <td className="py-3.5 px-4 font-mono text-slate-400">
+                          <td className="py-3 px-2 sm:px-4 font-mono text-slate-400 hidden md:table-cell">
                             {new Date(u.created_at).toLocaleDateString('es-ES', {
                               year: 'numeric',
                               month: 'short',
@@ -3643,7 +3645,7 @@ export default function DashboardPage() {
                               minute: '2-digit'
                             })}
                           </td>
-                          <td className="py-3.5 px-4 font-mono text-slate-400">
+                          <td className="py-3 px-2 sm:px-4 font-mono text-slate-400 hidden sm:table-cell">
                             {u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleDateString('es-ES', {
                               year: 'numeric',
                               month: 'short',
@@ -3652,7 +3654,7 @@ export default function DashboardPage() {
                               minute: '2-digit'
                             }) : 'Nunca'}
                           </td>
-                          <td className="py-3.5 pl-4 text-right">
+                          <td className="py-3 pl-2 sm:pl-4 text-right">
                             <div className="flex items-center justify-end gap-2.5">
                               <button
                                 type="button"

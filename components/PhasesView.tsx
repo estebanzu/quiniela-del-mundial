@@ -42,15 +42,15 @@ export function PhasesView({ phaseLeaderboard, username }: PhasesViewProps) {
           <table className="w-full text-left border-collapse text-sm">
             <thead>
               <tr className="border-b border-slate-800 bg-slate-900/60 text-slate-400 font-bold uppercase text-xs tracking-wider">
-                <th className="py-4 px-4 text-center w-16">Pos</th>
-                <th className="py-4 px-4">Usuario</th>
-                <th className="py-4 px-2 text-center w-28" title="Fase de Grupos (Partidos 1-72)">Fase 1 (Grupos)</th>
-                <th className="py-4 px-2 text-center w-28" title="Dieciseisavos (Partidos 73-88)">Fase 2 (16avos)</th>
-                <th className="py-4 px-2 text-center w-28" title="Octavos (Partidos 89-96)">Fase 3 (Octavos)</th>
-                <th className="py-4 px-2 text-center w-28" title="Cuartos (Partidos 97-100)">Fase 4 (Cuartos)</th>
-                <th className="py-4 px-2 text-center w-28" title="Semifinales (Partidos 101-102)">Fase 5 (Semis)</th>
-                <th className="py-4 px-2 text-center w-28" title="Tercer Puesto y Final (Partidos 103-104)">Fase 6 (Finales)</th>
-                <th className="py-4 px-4 text-center text-primary font-black w-28">Total Pts</th>
+                <th className="py-4 px-2 sm:px-4 text-center w-10 sm:w-16">Pos</th>
+                <th className="py-4 px-2 sm:px-4">Usuario</th>
+                <th className="py-4 px-1 sm:px-2 text-center w-12 sm:w-28" title="Fase de Grupos (Partidos 1-72)"><span className="hidden md:inline">Fase 1 (Grupos)</span><span className="md:hidden">F1</span></th>
+                <th className="py-4 px-1 sm:px-2 text-center w-12 sm:w-28" title="Dieciseisavos (Partidos 73-88)"><span className="hidden md:inline">Fase 2 (16avos)</span><span className="md:hidden">F2</span></th>
+                <th className="py-4 px-1 sm:px-2 text-center w-12 sm:w-28" title="Octavos (Partidos 89-96)"><span className="hidden md:inline">Fase 3 (Octavos)</span><span className="md:hidden">F3</span></th>
+                <th className="py-4 px-1 sm:px-2 text-center w-12 sm:w-28" title="Cuartos (Partidos 97-100)"><span className="hidden md:inline">Fase 4 (Cuartos)</span><span className="md:hidden">F4</span></th>
+                <th className="py-4 px-1 sm:px-2 text-center w-12 sm:w-28" title="Semifinales (Partidos 101-102)"><span className="hidden md:inline">Fase 5 (Semis)</span><span className="md:hidden">F5</span></th>
+                <th className="py-4 px-1 sm:px-2 text-center w-12 sm:w-28" title="Tercer Puesto y Final (Partidos 103-104)"><span className="hidden md:inline">Fase 6 (Finales)</span><span className="md:hidden">F6</span></th>
+                <th className="py-4 px-2 sm:px-4 text-center text-primary font-black w-16 sm:w-28"><span className="hidden sm:inline">Total Pts</span><span className="sm:hidden">Total</span></th>
               </tr>
             </thead>
             <tbody>
@@ -71,7 +71,7 @@ export function PhasesView({ phaseLeaderboard, username }: PhasesViewProps) {
                   else if (pos === 3) posEl = <span className="text-xl">🥉</span>
 
                   const phaseCell = (val: number, max: number) => (
-                    <td className={`py-3.5 px-2 text-center font-mono ${Number(val) === max && max > 0 ? 'text-amber-400 font-bold' : ''}`}>
+                    <td className={`py-3 px-1 sm:px-2 text-center font-mono ${Number(val) === max && max > 0 ? 'text-amber-400 font-bold' : ''}`}>
                       {val} {Number(val) === max && max > 0 ? '🏆' : ''}
                     </td>
                   )
@@ -83,12 +83,12 @@ export function PhasesView({ phaseLeaderboard, username }: PhasesViewProps) {
                         isCurrentUser ? 'bg-primary/5 font-extrabold text-white' : 'text-slate-300'
                       }`}
                     >
-                      <td className="py-3.5 px-4 text-center font-bold">{posEl}</td>
-                      <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-2">
-                          <span className={`w-2 h-2 rounded-full ${isCurrentUser ? 'bg-primary animate-pulse' : 'bg-slate-700'}`}></span>
-                          <span className="truncate max-w-[120px]">{row.username || 'Desconocido'}</span>
-                          {isCurrentUser && <span className="text-[9px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded bg-primary/20 text-primary border border-primary/30 shrink-0">Tú</span>}
+                      <td className="py-3 px-2 sm:px-4 text-center font-bold">{posEl}</td>
+                      <td className="py-3 px-2 sm:px-4">
+                        <div className="flex items-center gap-1 sm:gap-2">
+                          <span className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${isCurrentUser ? 'bg-primary animate-pulse' : 'bg-slate-700'}`}></span>
+                          <span className="truncate max-w-[70px] xs:max-w-[120px]">{row.username || 'Desconocido'}</span>
+                          {isCurrentUser && <span className="text-[8px] sm:text-[9px] uppercase tracking-wider font-extrabold px-1 sm:px-1.5 py-0.5 rounded bg-primary/20 text-primary border border-primary/30 shrink-0">Tú</span>}
                         </div>
                       </td>
                       {phaseCell(row.fase1, maxes.f1)}
@@ -97,7 +97,7 @@ export function PhasesView({ phaseLeaderboard, username }: PhasesViewProps) {
                       {phaseCell(row.fase4, maxes.f4)}
                       {phaseCell(row.fase5, maxes.f5)}
                       {phaseCell(row.fase6, maxes.f6)}
-                      <td className="py-3.5 px-4 text-center font-black text-primary text-base font-mono bg-slate-900/20">{row.total_points}</td>
+                      <td className="py-3 px-2 sm:px-4 text-center font-black text-primary text-sm sm:text-base font-mono bg-slate-900/20">{row.total_points}</td>
                     </tr>
                   )
                 })

@@ -61,7 +61,7 @@ export function GroupsView({ matches, activeGroupIndex, setActiveGroupIndex }: G
         </button>
 
         {/* Central Card */}
-        <div className="collectible-card w-full p-6 md:p-8 flex flex-col justify-between relative transition-all duration-300 bg-slate-900/60 border border-slate-800/80 rounded-3xl backdrop-blur-md overflow-hidden">
+        <div className="collectible-card w-full min-w-0 p-3.5 sm:p-6 md:p-8 flex flex-col justify-between relative transition-all duration-300 bg-slate-900/60 border border-slate-800/80 rounded-3xl backdrop-blur-md overflow-hidden">
           <div>
             {/* Header of Nav Card */}
             <div className="flex items-center justify-between pb-4 border-b border-slate-800/60 mb-6">
@@ -78,16 +78,16 @@ export function GroupsView({ matches, activeGroupIndex, setActiveGroupIndex }: G
               <table className="w-full text-left border-collapse text-xs md:text-sm">
                 <thead>
                   <tr className="border-b border-slate-850 text-slate-450 font-bold uppercase text-[10px] md:text-xs tracking-wider">
-                    <th className="py-3 px-2 text-center w-12">Pos</th>
-                    <th className="py-3 px-2">Equipo</th>
-                    <th className="py-3 px-2 text-center w-12" title="Partidos Jugados">PJ</th>
-                    <th className="py-3 px-2 text-center w-10 hidden sm:table-cell" title="Ganados">G</th>
-                    <th className="py-3 px-2 text-center w-10 hidden sm:table-cell" title="Empatados">E</th>
-                    <th className="py-3 px-2 text-center w-10 hidden sm:table-cell" title="Perdidos">P</th>
-                    <th className="py-3 px-2 text-center w-14 hidden sm:table-cell" title="Goles a Favor">GF</th>
-                    <th className="py-3 px-2 text-center w-14 hidden sm:table-cell" title="Goles en Contra">GC</th>
-                    <th className="py-3 px-2 text-center w-12" title="Diferencia de Goles">DG</th>
-                    <th className="py-3 px-3 text-center w-16 text-primary font-black" title="Puntos">Pts</th>
+                    <th className="py-3 px-1 sm:px-2 text-center w-8 sm:w-12">Pos</th>
+                    <th className="py-3 px-1 sm:px-2">Equipo</th>
+                    <th className="py-3 px-1 sm:px-2 text-center w-8 sm:w-12" title="Partidos Jugados">PJ</th>
+                    <th className="py-3 px-1 sm:px-2 text-center w-10 hidden sm:table-cell" title="Ganados">G</th>
+                    <th className="py-3 px-1 sm:px-2 text-center w-10 hidden sm:table-cell" title="Empatados">E</th>
+                    <th className="py-3 px-1 sm:px-2 text-center w-10 hidden sm:table-cell" title="Perdidos">P</th>
+                    <th className="py-3 px-1 sm:px-2 text-center w-14 hidden sm:table-cell" title="Goles a Favor">GF</th>
+                    <th className="py-3 px-1 sm:px-2 text-center w-14 hidden sm:table-cell" title="Goles en Contra">GC</th>
+                    <th className="py-3 px-1 sm:px-2 text-center w-8 sm:w-12" title="Diferencia de Goles">DG</th>
+                    <th className="py-3 px-1.5 sm:px-3 text-center w-12 sm:w-16 text-primary font-black" title="Puntos">Pts</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -107,27 +107,27 @@ export function GroupsView({ matches, activeGroupIndex, setActiveGroupIndex }: G
 
                     return (
                       <tr key={teamStats.name} className={rowClass}>
-                        <td className="py-3.5 px-2 text-center">
+                        <td className="py-3 px-1 sm:px-2 text-center">
                           <div className={posClass}>{idx + 1}</div>
                         </td>
-                        <td className="py-3.5 px-2 font-bold text-slate-200">
-                          <span className="flex items-center gap-3">
-                            <span className="text-xl select-none" role="img" aria-label={`Bandera de ${teamStats.name}`}>
+                        <td className="py-3 px-1 sm:px-2 font-bold text-slate-200">
+                          <span className="flex items-center gap-1.5 sm:gap-3">
+                            <span className="text-lg sm:text-xl select-none" role="img" aria-label={`Bandera de ${teamStats.name}`}>
                               {teamStats.flag}
                             </span>
-                            <span className="text-sm md:text-base font-semibold">{teamStats.name}</span>
+                            <span className="text-xs sm:text-sm md:text-base font-semibold">{teamStats.name}</span>
                           </span>
                         </td>
-                        <td className="py-3.5 px-2 text-center font-bold text-slate-300">{teamStats.pj}</td>
-                        <td className="py-3.5 px-2 text-center text-slate-400 hidden sm:table-cell">{teamStats.pg}</td>
-                        <td className="py-3.5 px-2 text-center text-slate-400 hidden sm:table-cell">{teamStats.pe}</td>
-                        <td className="py-3.5 px-2 text-center text-slate-400 hidden sm:table-cell">{teamStats.pp}</td>
-                        <td className="py-3.5 px-2 text-center text-slate-400 hidden sm:table-cell">{teamStats.gf}</td>
-                        <td className="py-3.5 px-2 text-center text-slate-400 hidden sm:table-cell">{teamStats.gc}</td>
-                        <td className={`py-3.5 px-2 text-center font-bold ${teamStats.gd > 0 ? 'text-emerald-400' : teamStats.gd < 0 ? 'text-rose-500' : 'text-slate-450'}`}>
+                        <td className="py-3 px-1 sm:px-2 text-center font-bold text-slate-300">{teamStats.pj}</td>
+                        <td className="py-3 px-1 sm:px-2 text-center text-slate-400 hidden sm:table-cell">{teamStats.pg}</td>
+                        <td className="py-3 px-1 sm:px-2 text-center text-slate-400 hidden sm:table-cell">{teamStats.pe}</td>
+                        <td className="py-3 px-1 sm:px-2 text-center text-slate-400 hidden sm:table-cell">{teamStats.pp}</td>
+                        <td className="py-3 px-1 sm:px-2 text-center text-slate-400 hidden sm:table-cell">{teamStats.gf}</td>
+                        <td className="py-3 px-1 sm:px-2 text-center text-slate-400 hidden sm:table-cell">{teamStats.gc}</td>
+                        <td className={`py-3 px-1 sm:px-2 text-center font-bold ${teamStats.gd > 0 ? 'text-emerald-400' : teamStats.gd < 0 ? 'text-rose-500' : 'text-slate-450'}`}>
                           {teamStats.gd > 0 ? `+${teamStats.gd}` : teamStats.gd}
                         </td>
-                        <td className="py-3.5 px-3 text-center font-black text-primary text-base">{teamStats.pts}</td>
+                        <td className="py-3 px-1.5 sm:px-3 text-center font-black text-primary text-sm sm:text-base">{teamStats.pts}</td>
                       </tr>
                     )
                   })}
