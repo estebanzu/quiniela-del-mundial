@@ -8,6 +8,7 @@ create table if not exists public.user_profiles (
   user_id uuid primary key references auth.users(id) on delete cascade,
   username text not null default 'anon',
   avatar_type text not null default 'initials',
+  favorite_team text,
   created_at timestamptz not null default now()
 );
 

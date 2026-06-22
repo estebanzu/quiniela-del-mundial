@@ -17,6 +17,61 @@ import LiveMatchTicker from '../components/LiveMatchTicker'
 
 const TZ = 'America/Costa_Rica' // UTC-6
 
+const TEAM_FLAGS: Record<string, string> = {
+  'Mexico': '🇲🇽',
+  'México': '🇲🇽',
+  'South Africa': '🇿🇦',
+  'South Korea': '🇰🇷',
+  'Czech Republic': '🇨🇿',
+  'Canada': '🇨🇦',
+  'Bosnia & Herzegovina': '🇧🇦',
+  'Qatar': '🇶🇦',
+  'Switzerland': '🇨🇭',
+  'Brazil': '🇧🇷',
+  'Morocco': '🇲🇦',
+  'Haiti': '🇭🇹',
+  'Scotland': '🏴󠁧󠁢󠁳󠁣󠁴󠁿',
+  'USA': '🇺🇸',
+  'Paraguay': '🇵🇾',
+  'Australia': '🇦🇺',
+  'Turkey': '🇹🇷',
+  'Germany': '🇩🇪',
+  'Curaçao': '🇨🇼',
+  'Ivory Coast': '🇨🇮',
+  'Ecuador': '🇪🇨',
+  'Netherlands': '🇳🇱',
+  'Japan': '🇯🇵',
+  'Sweden': '🇸🇪',
+  'Tunisia': '🇹🇳',
+  'Belgium': '🇧🇪',
+  'Egypt': '🇪🇬',
+  'Iran': '🇮🇷',
+  'New Zealand': '🇳🇿',
+  'Spain': '🇪🇸',
+  'España': '🇪🇸',
+  'Cape Verde': '🇨🇻',
+  'Saudi Arabia': '🇸🇦',
+  'Uruguay': '🇺🇾',
+  'France': '🇫🇷',
+  'Francia': '🇫🇷',
+  'Senegal': '🇸🇳',
+  'Iraq': '🇮🇶',
+  'Norway': '🇳🇴',
+  'Argentina': '🇦🇷',
+  'Algeria': '🇩🇿',
+  'Austria': '🇦🇹',
+  'Jordan': '🇯🇴',
+  'Portugal': '🇵🇹',
+  'DR Congo': '🇨🇩',
+  'Uzbekistan': '🇺🇿',
+  'Colombia': '🇨🇴',
+  'England': '🏴󠁧󠁢󠁥󠁮󠁧󠁿',
+  'Croatia': '🇭🇷',
+  'Ghana': '🇬🇭',
+  'Panama': '🇵🇦'
+}
+
+
 // Get YYYY-MM-DD key in the target timezone
 function dateKeyInTZ(d: Date): string {
   return d.toLocaleDateString('sv-SE', { timeZone: TZ }) // sv-SE gives YYYY-MM-DD format
@@ -324,6 +379,9 @@ export default function DashboardPage() {
   const [avatarStyle, setAvatarStyle] = useState<'initials' | 'fifa' | 'gold'>('initials')
   const [userProfiles, setUserProfiles] = useState<Record<string, string>>({})
   const [pushNotificationsEnabled, setPushNotificationsEnabled] = useState(false)
+  const [userFavoriteTeams, setUserFavoriteTeams] = useState<Record<string, string>>({})
+  const [favoriteTeam, setFavoriteTeam] = useState<string | null>(null)
+
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window) {
@@ -738,13 +796,16 @@ export default function DashboardPage() {
         try {
           const { data: ownProfile, error: ownProfileErr } = await supabase
             .from('user_profiles')
-            .select('avatar_type')
+            .select('avatar_type, favorite_team')
             .eq('user_id', user.id)
             .maybeSingle()
           
           if (!ownProfileErr && ownProfile) {
             setAvatarStyle(ownProfile.avatar_type as any)
             localStorage.setItem('avatar_style', ownProfile.avatar_type)
+            if (ownProfile.favorite_team) {
+              setFavoriteTeam(ownProfile.favorite_team)
+            }
           }
         } catch (err) {
           console.warn('Could not load own avatar profile, using default:', err)
@@ -924,17 +985,22 @@ export default function DashboardPage() {
     try {
       const { data, error } = await supabase
         .from('user_profiles')
-        .select('user_id, username, avatar_type')
+        .select('user_id, username, avatar_type, favorite_team')
       if (error) throw error
       if (data) {
         const profileMap: Record<string, string> = {}
+        const teamMap: Record<string, string> = {}
         const idMap: Record<string, string> = {}
         data.forEach((p) => {
           const unameLower = p.username.toLowerCase()
           profileMap[unameLower] = p.avatar_type
+          if (p.favorite_team) {
+            teamMap[unameLower] = p.favorite_team
+          }
           idMap[unameLower] = p.user_id
         })
         setUserProfiles(profileMap)
+        setUserFavoriteTeams(teamMap)
         setUserProfileIds(idMap)
       }
     } catch (err) {
@@ -1047,11 +1113,14 @@ export default function DashboardPage() {
 
     if (!userDetails) return null
 
+    const opponentTeam = userFavoriteTeams[expandedUser ? expandedUser.toLowerCase() : '']
+    const opponentFlag = opponentTeam ? TEAM_FLAGS[opponentTeam] : null
+
     return (
       <div className="space-y-4 animate-fadeIn">
         <div className="flex items-center justify-between border-b border-slate-900 pb-2">
           <span className="text-xs uppercase font-extrabold tracking-widest text-primary flex items-center gap-1.5">
-            📊 Perfil de @{expandedUser}
+            📊 Perfil de @{expandedUser} {opponentFlag && <span className="ml-1 text-sm">{opponentFlag}</span>}
           </span>
           <button 
             type="button"
@@ -1816,17 +1885,29 @@ export default function DashboardPage() {
                     </span>
                   )}
                 </button>
+                {favoriteTeam && TEAM_FLAGS[favoriteTeam] && (
+                  <span className="absolute -bottom-1 -right-1 text-xs bg-slate-950/85 rounded-full w-4 h-4 flex items-center justify-center border border-slate-800 shadow-sm pointer-events-none" title={`Apoyando a ${favoriteTeam}`}>
+                    {TEAM_FLAGS[favoriteTeam]}
+                  </span>
+                )}
 
                 {avatarDropdownOpen && (
                   <div className="absolute right-0 mt-3 w-64 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl shadow-black/60 z-50 overflow-hidden animate-fadeIn p-4">
                     <div className="flex items-center gap-3 pb-3.5 border-b border-slate-800/80">
-                      <div className="w-11 h-11 rounded-full overflow-hidden border border-slate-800 flex items-center justify-center bg-slate-950">
-                        {avatarStyle === 'gold' ? (
-                          <video src="/avatar-animado.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover" />
-                        ) : avatarStyle === 'fifa' ? (
-                          <video src="/fifaloading.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover" />
-                        ) : (
-                          <span className="text-xs font-black text-cyan-400 uppercase">{username.slice(0, 2)}</span>
+                      <div className="relative">
+                        <div className="w-11 h-11 rounded-full overflow-hidden border border-slate-800 flex items-center justify-center bg-slate-950">
+                          {avatarStyle === 'gold' ? (
+                            <video src="/avatar-animado.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover" />
+                          ) : avatarStyle === 'fifa' ? (
+                            <video src="/fifaloading.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-xs font-black text-cyan-400 uppercase">{username.slice(0, 2)}</span>
+                          )}
+                        </div>
+                        {favoriteTeam && TEAM_FLAGS[favoriteTeam] && (
+                          <span className="absolute -bottom-1 -right-1 text-xs bg-slate-950/85 rounded-full w-4.5 h-4.5 flex items-center justify-center border border-slate-800 shadow-sm pointer-events-none">
+                            {TEAM_FLAGS[favoriteTeam]}
+                          </span>
                         )}
                       </div>
                       <div className="flex flex-col truncate">
@@ -1912,6 +1993,61 @@ export default function DashboardPage() {
                           Recibe alertas 30m antes de iniciar cada partido y avisos de predicciones.
                         </span>
                       </button>
+                    </div>
+
+                    {/* Favorite Team Selection */}
+                    <div className="pt-3 border-t border-slate-800/80 mt-2 space-y-1.5">
+                      <span className="text-[9px] uppercase font-black tracking-widest text-slate-500 block mb-1">
+                        Selección Favorita (Bandera)
+                      </span>
+                      <div className="relative">
+                        <select
+                          value={favoriteTeam || ''}
+                          onChange={async (e) => {
+                            const selected = e.target.value || null
+                            setFavoriteTeam(selected)
+                            
+                            // Save to database
+                            if (userId) {
+                              try {
+                                const { error } = await supabase
+                                  .from('user_profiles')
+                                  .upsert({
+                                    user_id: userId,
+                                    favorite_team: selected
+                                  }, { onConflict: 'user_id' })
+                                if (error) throw error
+                                toast.success(selected ? `Selección favorita guardada: ${selected}` : 'Selección favorita eliminada.')
+                                await loadUserProfiles() // reload mappings
+                              } catch (err) {
+                                console.error('Error saving favorite team to DB:', err)
+                                toast.error('No se pudo guardar la selección en la base de datos.')
+                              }
+                            } else {
+                              toast.success(selected ? `Selección cambiada a: ${selected}` : 'Selección eliminada.')
+                            }
+                          }}
+                          className="w-full bg-slate-950/50 border border-slate-800 hover:border-slate-700 text-slate-200 text-xs rounded-xl p-2.5 outline-none cursor-pointer appearance-none transition-all pr-8"
+                        >
+                          <option value="" className="bg-slate-900 text-slate-400">🏳️ Ninguna selección</option>
+                          {(() => {
+                            const sortedTeams = Array.from(new Set(matches.flatMap(m => [m.home_team, m.away_team])))
+                              .filter(Boolean)
+                              .sort()
+                            return sortedTeams.map((teamName) => {
+                              const flag = TEAM_FLAGS[teamName] || '🏳️'
+                              return (
+                                <option key={teamName} value={teamName} className="bg-slate-900 text-slate-200">
+                                  {flag} {teamName}
+                                </option>
+                              )
+                            })
+                          })()}
+                        </select>
+                        <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-500 text-[10px]">
+                          ▼
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -2240,6 +2376,15 @@ export default function DashboardPage() {
                                     🔥
                                   </span>
                                 )}
+                                {(() => {
+                                  const rowFavoriteTeam = userFavoriteTeams[row.username.toLowerCase()]
+                                  if (!rowFavoriteTeam || !TEAM_FLAGS[rowFavoriteTeam]) return null
+                                  return (
+                                    <span className="absolute -bottom-1.5 right-0.5 sm:right-1 text-[10px] sm:text-xs bg-slate-950/85 rounded-full w-4 h-4 sm:w-4.5 sm:h-4.5 flex items-center justify-center border border-slate-800 shadow-sm pointer-events-none z-30" title={`Apoyando a ${rowFavoriteTeam}`}>
+                                      {TEAM_FLAGS[rowFavoriteTeam]}
+                                    </span>
+                                  )
+                                })()}
                               </div>
 
                               <div className={`w-full rounded-t-2xl border-t border-x flex flex-col items-center justify-between p-2 sm:p-3 transition-all duration-300 ${pos.pedestalClass} ${
@@ -2349,8 +2494,19 @@ export default function DashboardPage() {
                                 )}
 
                                 {/* Row Avatar Container */}
-                                <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full overflow-hidden border ${borderClass} flex items-center justify-center bg-slate-950 shrink-0 relative hidden min-[360px]:flex`}>
-                                  {avatarEl}
+                                <div className="relative shrink-0 hidden min-[360px]:block">
+                                  <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full overflow-hidden border ${borderClass} flex items-center justify-center bg-slate-950`}>
+                                    {avatarEl}
+                                  </div>
+                                  {(() => {
+                                    const rowFavoriteTeam = userFavoriteTeams[row.username.toLowerCase()]
+                                    if (!rowFavoriteTeam || !TEAM_FLAGS[rowFavoriteTeam]) return null
+                                    return (
+                                      <span className="absolute -bottom-1 -right-1 text-[8px] sm:text-[10px] bg-slate-950/85 rounded-full w-3.5 h-3.5 sm:w-4 sm:h-4 flex items-center justify-center border border-slate-800/80 shadow-sm pointer-events-none z-30" title={`Apoyando a ${rowFavoriteTeam}`}>
+                                        {TEAM_FLAGS[rowFavoriteTeam]}
+                                      </span>
+                                    )
+                                  })()}
                                 </div>
 
                                 <div className="flex flex-col min-w-0">
