@@ -323,6 +323,17 @@ export default function DashboardPage() {
   const [avatarDropdownOpen, setAvatarDropdownOpen] = useState(false)
   const [avatarStyle, setAvatarStyle] = useState<'initials' | 'fifa' | 'gold'>('initials')
   const [userProfiles, setUserProfiles] = useState<Record<string, string>>({})
+  const [pushNotificationsEnabled, setPushNotificationsEnabled] = useState(false)
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window) {
+      navigator.serviceWorker.ready.then((reg) => {
+        reg.pushManager.getSubscription().then((sub) => {
+          setPushNotificationsEnabled(!!sub)
+        })
+      })
+    }
+  }, [])
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -1444,6 +1455,93 @@ export default function DashboardPage() {
     router.push('/login')
   }
 
+  const handlePushNotificationsToggle = async () => {
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+      toast.error('Tu navegador o dispositivo no soporta notificaciones push.')
+      return
+    }
+
+    try {
+      if (pushNotificationsEnabled) {
+        // Unsubscribe flow
+        const reg = await navigator.serviceWorker.ready
+        const sub = await reg.pushManager.getSubscription()
+        if (sub) {
+          await sub.unsubscribe()
+          
+          const { data: sessionData } = await supabase.auth.getSession()
+          const token = sessionData?.session?.access_token
+          
+          await fetch('/api/push/subscribe', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': token ? `Bearer ${token}` : ''
+            },
+            body: JSON.stringify({
+              subscription: { endpoint: sub.endpoint },
+              action: 'unsubscribe'
+            })
+          })
+        }
+        setPushNotificationsEnabled(false)
+        toast.success('Notificaciones push desactivadas.')
+      } else {
+        // Subscribe flow
+        const permission = await Notification.requestPermission()
+        if (permission !== 'granted') {
+          toast.error('Debes habilitar los permisos de notificación para recibir alertas.')
+          return
+        }
+
+        const reg = await navigator.serviceWorker.ready
+        const publicVapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BH0INDF0_lmtyNaJb9fcc7JWCyCPFFXx6tzQQFRqm2Pd8-QyO4gSwJBp2S4nq6p2piRxxNG7MYId3Hgz0UNDqtY'
+        
+        const urlBase64ToUint8Array = (base64String: string) => {
+          const padding = '='.repeat((4 - base64String.length % 4) % 4)
+          const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/')
+          const rawData = window.atob(base64)
+          const outputArray = new Uint8Array(rawData.length)
+          for (let i = 0; i < rawData.length; ++i) {
+            outputArray[i] = rawData.charCodeAt(i)
+          }
+          return outputArray
+        }
+
+        const sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(publicVapidKey)
+        })
+
+        const { data: sessionData } = await supabase.auth.getSession()
+        const token = sessionData?.session?.access_token
+
+        const res = await fetch('/api/push/subscribe', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': token ? `Bearer ${token}` : ''
+          },
+          body: JSON.stringify({
+            subscription: sub,
+            action: 'subscribe'
+          })
+        })
+
+        if (res.ok) {
+          setPushNotificationsEnabled(true)
+          toast.success('🔔 ¡Notificaciones push activadas correctamente!')
+        } else {
+          const errData = await res.json()
+          throw new Error(errData.error || 'Failed to register subscription.')
+        }
+      }
+    } catch (err: any) {
+      console.error('Error toggling push notifications:', err)
+      toast.error(err.message || 'Error al configurar las notificaciones push.')
+    }
+  }
+
   // Seeding helper to make testing easy if matches is empty
   const seedDemoMatches = async () => {
     if (!userId) return
@@ -1782,6 +1880,38 @@ export default function DashboardPage() {
                           <span className="text-[9px] text-slate-500 font-medium leading-none">{styleOption.desc}</span>
                         </button>
                       ))}
+                    </div>
+
+                    {/* Push Notifications Toggle */}
+                    <div className="pt-3 border-t border-slate-800/80 mt-2 space-y-1.5">
+                      <span className="text-[9px] uppercase font-black tracking-widest text-slate-500 block mb-1">
+                        Notificaciones Push
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handlePushNotificationsToggle}
+                        className={`w-full text-left p-2.5 rounded-xl border transition-all text-xs flex flex-col gap-0.5 cursor-pointer ${
+                          pushNotificationsEnabled
+                            ? 'bg-emerald-500/10 border-emerald-500/35 text-emerald-400 font-bold'
+                            : 'bg-slate-950/40 border-slate-900 text-slate-400 hover:border-slate-800 hover:text-white'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between w-full">
+                          <span className="font-extrabold">
+                            {pushNotificationsEnabled ? '🔔 Activadas' : '🔕 Desactivadas'}
+                          </span>
+                          <div className={`w-6 h-3.5 rounded-full relative transition-all ${
+                            pushNotificationsEnabled ? 'bg-emerald-500' : 'bg-slate-750'
+                          }`}>
+                            <div className={`w-2.5 h-2.5 rounded-full bg-slate-950 absolute top-0.5 transition-all ${
+                              pushNotificationsEnabled ? 'right-0.5' : 'left-0.5'
+                            }`} />
+                          </div>
+                        </div>
+                        <span className="text-[9px] text-slate-500 font-medium leading-none">
+                          Recibe alertas 30m antes de iniciar cada partido y avisos de predicciones.
+                        </span>
+                      </button>
                     </div>
                   </div>
                 )}

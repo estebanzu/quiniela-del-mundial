@@ -58,3 +58,59 @@ self.addEventListener('fetch', (event) => {
       .catch(() => caches.match(request))
   )
 })
+
+// Push notification receiver event
+self.addEventListener('push', (event) => {
+  let data = { title: '🏆 Quiniela Mundial', body: '¡Llene sus predicciones para el próximo partido!' }
+  if (event.data) {
+    try {
+      data = event.data.json()
+    } catch (e) {
+      data = { title: '🏆 Quiniela Mundial', body: event.data.text() }
+    }
+  }
+
+  const options = {
+    body: data.body,
+    icon: '/logo-wc2026.png',
+    badge: '/favicon.svg',
+    data: data.data || {},
+    vibrate: [100, 50, 100],
+    actions: [
+      { action: 'open_app', title: 'Abrir Quiniela' }
+    ]
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, options)
+  )
+})
+
+// Push notification click event
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+
+  let urlToOpen = '/'
+  if (event.notification.data && event.notification.data.url) {
+    urlToOpen = event.notification.data.url
+  }
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      // If a window is already open, focus it
+      for (let i = 0; i < windowClients.length; i++) {
+        const client = windowClients[i]
+        const clientUrl = new URL(client.url)
+        const targetUrl = new URL(urlToOpen, self.location.origin)
+        if (clientUrl.pathname === targetUrl.pathname && 'focus' in client) {
+          return client.focus()
+        }
+      }
+      // Otherwise open a new window
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(urlToOpen)
+      }
+    })
+  )
+})
+
