@@ -15,7 +15,8 @@ export async function GET() {
       if (!matches) return
       for (const m of matches) {
         if (m && typeof m.id === 'number') {
-          apiMatches[m.id] = {
+          const dbId = m.id + 1
+          apiMatches[dbId] = {
             score: Array.isArray(m.score) && m.score.length === 2 ? (m.score as [number, number]) : null,
             status: m.status || 'pending'
           }

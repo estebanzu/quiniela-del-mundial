@@ -57,7 +57,8 @@ export async function syncMatchesFromApi(): Promise<SyncResult> {
       continue
     }
 
-    const apiMatch = apiMatchesMap.get(Number(dbMatch.id))
+    // API match IDs are 0-indexed (0 to 103), while database IDs are 1-indexed (1 to 104)
+    const apiMatch = apiMatchesMap.get(Number(dbMatch.id) - 1)
     if (!apiMatch) {
       continue
     }

@@ -397,7 +397,7 @@ export default function LiveMatchesView({
                 {userId && (
                   <div className="mt-3.5 pt-3 border-t border-slate-900/50 flex justify-between items-center">
                     <button
-                      onClick={() => onOpenChat({ id: match.id, homeTeam: match.team1, awayTeam: match.team2 })}
+                      onClick={() => onOpenChat({ id: match.id + 1, homeTeam: match.team1, awayTeam: match.team2 })}
                       className="px-3 py-1.5 rounded-xl border bg-slate-950 border-slate-900 hover:border-slate-850 text-slate-450 hover:text-slate-200 text-[10px] uppercase font-extrabold tracking-wider transition duration-150 flex items-center gap-1.5 cursor-pointer active:scale-95"
                     >
                       💬 Chat de Partido
