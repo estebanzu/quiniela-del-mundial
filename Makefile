@@ -65,6 +65,18 @@ stop: ## Stop dev server running in background
 		fi; \
 	fi
 
+cron-sync: ## Trigger manual cron sync (requires CRON_SECRET in .env.local)
+	@if [ -z "$(CRON_SECRET)" ]; then \
+		CRON_SECRET=$$(grep '^CRON_SECRET=' .env.local | cut -d= -f2); \
+	else \
+		true; \
+	fi; \
+	if [ -z "$$CRON_SECRET" ]; then \
+		echo "❌ CRON_SECRET not set. Add it to .env.local"; \
+		exit 1; \
+	fi; \
+	curl -s "http://$(HOST):$(PORT)/api/cron-sync-matches?secret=$$CRON_SECRET" | python3 -m json.tool 2>/dev/null || curl -s "http://$(HOST):$(PORT)/api/cron-sync-matches?secret=$$CRON_SECRET"
+
 clean: stop ## Stop server and remove build files/logs
 	rm -rf .next
 	rm -f "$(LOGFILE)"

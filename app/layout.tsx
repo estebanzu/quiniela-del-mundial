@@ -5,7 +5,6 @@ export const metadata = {
   title: 'Quiniela Mundial 2026',
   description: 'Pronósticos y quiniela de la Copa Mundial FIFA 2026',
   manifest: '/manifest.json',
-  themeColor: '#008080',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
