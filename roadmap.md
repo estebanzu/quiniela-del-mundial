@@ -98,9 +98,57 @@ timeline
 
 ---
 
-## 🚀 Fase 1: Próximas Características Sociales y Gamificación (Corto Plazo)
+## 🧪 Fase 1.1: Correcciones de UX (Prioridad Máxima - Julio 2026)
 
-*   **Línea de Tiempo:** Fines de Junio 2026
+*   **Línea de Tiempo:** Principios de Julio 2026
+*   **Objetivos:** Resolver los 25 hallazgos críticos, altos y medios de la auditoría UX. Eliminar barreras de entrada para usuarios no técnicos.
+
+### 🔴 Críticos (Resolver primero):
+1.  **Refactorizar SPA monolítica:**
+    *   Extraer las 11 vistas de `app/page.tsx` (~4674 líneas) en componentes con `ErrorBoundary` o rutas independientes. Priorizar la vista de predicciones como página separada.
+2.  **Sincronizar bloqueo de predicciones:**
+    *   Cambiar el frontend (`MatchCard.tsx:194`) de 5 minutos a 1 hora para coincidir con el backend (`quiniela_schema.sql`) y la regla documentada. Eliminar el error confuso "servidor rechazó la predicción".
+3.  **Validación de email en registro:**
+    *   Agregar validación con regex del lado del cliente antes del envío. Mostrar advertencia: "Este correo se usará para recuperar tu cuenta si olvidas la contraseña."
+    *   Agregar indicador de normalización a minúsculas en el campo de usuario.
+
+### 🟡 Altos:
+4.  **Navegación visible, no oculta en dropdown:**
+    *   Mostrar iconos de navegación visibles para las 4 funciones principales (Pronósticos, Calendario, Tabla, Grupos) en el header. Mover el resto a un menú "Más".
+    *   Alternativa: Barra de pestañas inferior (tab bar) en móvil.
+5.  **Onboarding para nuevos usuarios:**
+    *   Modal de bienvenida de 3 pasos al primer inicio tras el registro: "Asigna marcadores → Gana puntos → Compite con tu familia".
+    *   Mantener las reglas de puntuación expandidas por defecto para cuentas nuevas.
+6.  **Reparar "Cerca de mí" en leaderboard:**
+    *   Si el usuario tiene 0 puntos (sin predicciones), en vez de mostrar el Top 10, mostrar mensaje: "Aún no apareces en la tabla. ¡Haz tu primera predicción!"
+7.  **Mejorar contraste y legibilidad:**
+    *   Aumentar tamaño mínimo de texto informativo de 10px a 11px.
+    *   Cambiar `text-slate-400` a `text-slate-300` para etiquetas de formularios y descripciones importantes.
+
+### 🟢 Medios:
+8.  **Etiquetar 🎲 como "Aleatorio":**
+    *   Agregar texto descriptivo al botón de dado aleatorio en MatchCard: `🎲 Aleatorio` en vez de solo el emoji.
+9.  **Simplificar banner PWA:**
+    *   Cambiar texto a: "📱 Agrega a tu pantalla de inicio para abrir más rápido y recibir notificaciones."
+    *   Botón: "Agregar a pantalla de inicio" en vez de "Instalar App".
+10. **Accesibilidad de emojis:**
+    *   Agregar `aria-label` a todos los emojis que funcionan como único indicador visual (🎯, 🤝, 🔥, 🏆, etc.).
+11. **Mover configuración fuera del avatar dropdown:**
+    *   Agregar botón visible "⚙️ Perfil" en el header. Mover notificaciones push y equipo favorito a una página/modal de configuración accesible.
+12. **Feedback persistente de guardado:**
+    *   Indicar con borde verde y check persistente las predicciones ya guardadas (no solo mensaje de 3 segundos).
+13. **Zona horaria visible:**
+    *   Mostrar "(Costa Rica, UTC-6)" junto a la hora de cada partido.
+14. **Leyenda de siglas en tabla de grupos:**
+    *   Agregar `<abbr title="...">` para PJ, PG, PE, PP, GF, GC, DG o leyenda expandible.
+15. **Validación visual en inputs de marcador:**
+    *   Mostrar advertencia si el marcador supera 10 goles. No permitir valores negativos.
+
+---
+
+## 🚀 Fase 1.2: Próximas Características Sociales y Gamificación (Corto Plazo)
+
+*   **Línea de Tiempo:** Mediados de Julio 2026
 *   **Objetivos:** Fomentar la competitividad y la retención del usuario mediante funciones de socialización.
 
 ### Características Planificadas:
