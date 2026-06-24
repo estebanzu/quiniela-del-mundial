@@ -176,8 +176,8 @@ export function MatchChat({
       setGifLoading(true)
       try {
         const url = gifSearchQuery.trim()
-          ? `https://api.giphy.com/v1/gifs/search?api_key=dc6zaTOxFJmzC&q=${encodeURIComponent(gifSearchQuery)}&limit=15`
-          : `https://api.giphy.com/v1/gifs/trending?api_key=dc6zaTOxFJmzC&limit=15`
+          ? `https://api.giphy.com/v1/gifs/search?api_key=hm2WiChzeEHWyeGb43swuiUDwjrOmp7K&q=${encodeURIComponent(gifSearchQuery)}&limit=15`
+          : `https://api.giphy.com/v1/gifs/trending?api_key=hm2WiChzeEHWyeGb43swuiUDwjrOmp7K&limit=15`
         
         const res = await fetch(url)
         const json = await res.json()
