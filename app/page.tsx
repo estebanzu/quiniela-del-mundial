@@ -383,7 +383,29 @@ export default function DashboardPage() {
   const [pushNotificationsEnabled, setPushNotificationsEnabled] = useState(false)
   const [userFavoriteTeams, setUserFavoriteTeams] = useState<Record<string, string>>({})
   const [favoriteTeam, setFavoriteTeam] = useState<string | null>(null)
+  const [teamDropdownOpen, setTeamDropdownOpen] = useState(false)
 
+  const handleFavoriteTeamChange = async (team: string | null) => {
+    setFavoriteTeam(team)
+    if (userId) {
+      try {
+        const { error } = await supabase
+          .from('user_profiles')
+          .upsert({
+            user_id: userId,
+            favorite_team: team
+          }, { onConflict: 'user_id' })
+        if (error) throw error
+        toast.success(team ? `Selección favorita guardada: ${team}` : 'Selección favorita eliminada.')
+        await loadUserProfiles()
+      } catch (err) {
+        console.error('Error saving favorite team to DB:', err)
+        toast.error('No se pudo guardar la selección en la base de datos.')
+      }
+    } else {
+      toast.success(team ? `Selección cambiada a: ${team}` : 'Selección eliminada.')
+    }
+  }
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window) {
@@ -466,10 +488,11 @@ export default function DashboardPage() {
       setDropdownOpen(false)
       setNavDropdownOpen(false)
       setAvatarDropdownOpen(false)
+      setTeamDropdownOpen(false)
     }
     document.addEventListener('click', handleClick)
     return () => document.removeEventListener('click', handleClick)
-  }, [dropdownOpen, navDropdownOpen, avatarDropdownOpen])
+  }, [dropdownOpen, navDropdownOpen, avatarDropdownOpen, teamDropdownOpen])
 
   // Keyboard navigation for groups carousel
   useEffect(() => {
@@ -1946,7 +1969,7 @@ export default function DashboardPage() {
                 )}
 
                 {avatarDropdownOpen && (
-                  <div className="absolute right-0 mt-3 w-64 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl shadow-black/60 z-50 overflow-hidden animate-fadeIn p-4">
+                  <div className="absolute right-0 mt-3 w-64 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl shadow-black/60 z-50 animate-fadeIn p-4">
                     <div className="flex items-center gap-3 pb-3.5 border-b border-slate-800/80">
                       <div className="relative">
                         <div className="w-11 h-11 rounded-full overflow-hidden border border-slate-800 flex items-center justify-center bg-slate-950">
@@ -1986,7 +2009,7 @@ export default function DashboardPage() {
                         <button
                           key={styleOption.key}
                           type="button"
-                          onClick={async () => {
+                          onClick={async (e) => { e.stopPropagation();
                             setAvatarStyle(styleOption.key as any)
                             localStorage.setItem('avatar_style', styleOption.key)
                             
@@ -2058,52 +2081,49 @@ export default function DashboardPage() {
                         Selección Favorita (Bandera)
                       </span>
                       <div className="relative">
-                        <select
-                          value={favoriteTeam || ''}
-                          onChange={async (e) => {
-                            const selected = e.target.value || null
-                            setFavoriteTeam(selected)
-                            
-                            // Save to database
-                            if (userId) {
-                              try {
-                                const { error } = await supabase
-                                  .from('user_profiles')
-                                  .upsert({
-                                    user_id: userId,
-                                    favorite_team: selected
-                                  }, { onConflict: 'user_id' })
-                                if (error) throw error
-                                toast.success(selected ? `Selección favorita guardada: ${selected}` : 'Selección favorita eliminada.')
-                                await loadUserProfiles() // reload mappings
-                              } catch (err) {
-                                console.error('Error saving favorite team to DB:', err)
-                                toast.error('No se pudo guardar la selección en la base de datos.')
-                              }
-                            } else {
-                              toast.success(selected ? `Selección cambiada a: ${selected}` : 'Selección eliminada.')
-                            }
-                          }}
-                          className="w-full bg-slate-950/50 border border-slate-800 hover:border-slate-700 text-slate-200 text-xs rounded-xl p-2.5 outline-none cursor-pointer appearance-none transition-all pr-8"
+                        <button
+                          type="button"
+                          title={favoriteTeam || 'Ninguna selección'}
+                          onClick={(e) => { e.stopPropagation(); setTeamDropdownOpen(!teamDropdownOpen) }}
+                          className="w-full bg-slate-950/50 border border-slate-800 hover:border-slate-700 text-lg rounded-xl p-2 outline-none cursor-pointer transition-all flex items-center justify-center"
                         >
-                          <option value="" className="bg-slate-900 text-slate-400">🏳️ Ninguna selección</option>
-                          {(() => {
-                            const sortedTeams = Array.from(new Set(matches.flatMap(m => [m.home_team, m.away_team])))
-                              .filter(Boolean)
-                              .sort()
-                            return sortedTeams.map((teamName) => {
-                              const flag = TEAM_FLAGS[teamName] || '🏳️'
-                              return (
-                                <option key={teamName} value={teamName} className="bg-slate-900 text-slate-200">
-                                  {flag} {teamName}
-                                </option>
-                              )
-                            })
-                          })()}
-                        </select>
-                        <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-slate-500 text-[10px]">
-                          ▼
-                        </div>
+                          {favoriteTeam ? (TEAM_FLAGS[favoriteTeam] || '🏳️') : '🏳️'}
+                        </button>
+                        {teamDropdownOpen && (
+                          <div className="absolute top-full left-0 right-0 mt-1 max-h-60 overflow-y-auto rounded-xl bg-slate-900 border border-slate-800 shadow-xl z-50 p-2" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center gap-1 pb-1.5 mb-1.5 border-b border-slate-800/80">
+                              <button
+                                type="button"
+                                title="Ninguna selección"
+                                onClick={async (e) => { e.stopPropagation(); setTeamDropdownOpen(false); await handleFavoriteTeamChange(null) }}
+                                className={`text-base px-2 py-1.5 transition flex items-center justify-center rounded-lg ${!favoriteTeam ? 'ring-2 ring-cyan-500/40 bg-cyan-500/10' : 'text-slate-400 hover:bg-slate-800/50'}`}
+                              >
+                                🏳️
+                              </button>
+                            </div>
+                            <div className="flex flex-col gap-0.5">
+                              {(() => {
+                                const sortedTeams = Array.from(new Set(matches.flatMap(m => [m.home_team, m.away_team])))
+                                  .filter((t): t is string => !!t && !!TEAM_FLAGS[t])
+                                  .sort()
+                                return sortedTeams.map((teamName) => {
+                                  const flag = TEAM_FLAGS[teamName]
+                                  return (
+                                    <button
+                                      key={teamName}
+                                      type="button"
+                                      onClick={async (e) => { e.stopPropagation(); setTeamDropdownOpen(false); await handleFavoriteTeamChange(teamName) }}
+                                      className={`w-full text-left px-3 py-2 text-xs transition flex items-center gap-2 rounded-lg ${favoriteTeam === teamName ? 'text-cyan-400 bg-cyan-500/10 ring-1 ring-cyan-500/30' : 'text-slate-300 hover:bg-slate-800/50 hover:text-white'}`}
+                                    >
+                                      <span className="text-lg">{flag}</span>
+                                      <span>{teamName}</span>
+                                    </button>
+                                  )
+                                })
+                              })()}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

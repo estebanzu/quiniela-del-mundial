@@ -49,7 +49,7 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     fetch(request)
       .then((response) => {
-        if (response.ok && url.pathname.match(/\.(mp4|png|svg|jpg|jpeg|woff2?|ico)$/)) {
+        if (response.ok && !request.headers.get('Range') && url.pathname.match(/\.(mp4|png|svg|jpg|jpeg|woff2?|ico)$/)) {
           const clone = response.clone()
           caches.open(CACHE_NAME).then((cache) => cache.put(request, clone))
         }
