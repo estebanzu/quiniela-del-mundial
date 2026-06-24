@@ -447,6 +447,7 @@ export default function DashboardPage() {
   const [isIOS, setIsIOS] = useState(false)
   const [isSafari, setIsSafari] = useState(false)
   const [showIOSInstructions, setShowIOSInstructions] = useState(false)
+  const [showOnboarding, setShowOnboarding] = useState(false)
 
   // Gamification badges states
   const [unlockedBadges, setUnlockedBadges] = useState<string[]>([])
@@ -665,7 +666,7 @@ export default function DashboardPage() {
       setLoginStats(mappedStats)
     } catch (err: any) {
       console.error(err)
-      setError(err.message || 'Error al cargar datos de administración.')
+      setError(friendlyError(err) || 'Error al cargar datos de administración.')
     } finally {
       setLoadingAdminData(false)
     }
@@ -698,7 +699,7 @@ export default function DashboardPage() {
       setNewPassword('')
     } catch (err: any) {
       console.error(err)
-      toast.error(err.message || 'Error al restablecer la contraseña.')
+      toast.error(friendlyError(err) || 'Error al restablecer la contraseña.')
     } finally {
       setResettingPassword(false)
     }
@@ -718,7 +719,7 @@ export default function DashboardPage() {
       await fetchAdminData()
     } catch (err: any) {
       console.error(err)
-      toast.error(err.message || 'Error al eliminar el usuario.')
+      toast.error(friendlyError(err) || 'Error al eliminar el usuario.')
     } finally {
       setDeletingUser(false)
     }
@@ -783,10 +784,13 @@ export default function DashboardPage() {
           setUserEmail(user.email)
           const namePart = user.email.split('@')[0]
           setUsername(namePart.charAt(0).toUpperCase() + namePart.slice(1))
-          if (namePart.toLowerCase() === 'admin') {
+          if (user.user_metadata?.is_admin === true) {
             setAdminMode(true)
           }
           logUserLogin(user.id, user.email)
+          if (typeof window !== 'undefined' && !localStorage.getItem('onboarding_done')) {
+            setShowOnboarding(true)
+          }
         }
 
         // Load global user profiles list
@@ -1265,7 +1269,7 @@ export default function DashboardPage() {
       }
     } catch (err: any) {
       console.error(err)
-      setError(err.message || 'Error al cargar los partidos de la base de datos.')
+      setError(friendlyError(err) || 'Error al cargar los partidos de la base de datos.')
     }
   }
 
@@ -1425,7 +1429,7 @@ export default function DashboardPage() {
       toast.success(`¡Sincronización exitosa! Se actualizaron ${data.count} partidos del Mundial.`)
     } catch (err: any) {
       console.error(err)
-      setError(err.message || 'Error durante la sincronización.')
+      setError(friendlyError(err) || 'Error durante la sincronización.')
     } finally {
       setSyncing(false)
     }
@@ -1444,7 +1448,7 @@ export default function DashboardPage() {
       toast.success(data || '¡Emulación completa del Mundial finalizada con éxito!')
     } catch (err: any) {
       console.error(err)
-      setError(err.message || 'Error al emular el Mundial.')
+      setError(friendlyError(err) || 'Error al emular el Mundial.')
     } finally {
       setEmulatingWorldCup(false)
     }
@@ -1464,7 +1468,7 @@ export default function DashboardPage() {
       toast.success(data || '¡Usuarios dummy y pronósticos creados con éxito!')
     } catch (err: any) {
       console.error(err)
-      setError(err.message || 'Error al crear usuarios dummy.')
+      setError(friendlyError(err) || 'Error al crear usuarios dummy.')
     } finally {
       setSeedingDummies(false)
     }
@@ -1489,7 +1493,7 @@ export default function DashboardPage() {
       toast.success(data || '¡Emulación reiniciada y dummies eliminados con éxito!')
     } catch (err: any) {
       console.error(err)
-      setError(err.message || 'Error al eliminar dummies y pruebas.')
+      setError(friendlyError(err) || 'Error al eliminar dummies y pruebas.')
     } finally {
       setDeletingDummies(false)
     }
@@ -1522,6 +1526,16 @@ export default function DashboardPage() {
   const handleSignOut = async () => {
     await supabase.auth.signOut()
     router.push('/login')
+  }
+
+  function friendlyError(err: any): string {
+    const msg = err?.message || err?.error_description || ''
+    if (msg.includes('duplicate key')) return 'Ya existe un registro con ese valor.'
+    if (msg.includes('violates row-level security')) return 'No tienes permisos para realizar esta acción.'
+    if (msg.includes('JWT expired')) return 'Tu sesión expiró. Inicia sesión de nuevo.'
+    if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) return 'Error de conexión. Revisa tu internet e intenta de nuevo.'
+    if (msg.includes('new row violates')) return 'No tienes permisos para guardar estos datos.'
+    return msg || 'Ocurrió un error inesperado. Intenta de nuevo.'
   }
 
   const handlePushNotificationsToggle = async () => {
@@ -1607,7 +1621,7 @@ export default function DashboardPage() {
       }
     } catch (err: any) {
       console.error('Error toggling push notifications:', err)
-      toast.error(err.message || 'Error al configurar las notificaciones push.')
+      toast.error(friendlyError(err) || 'Error al configurar las notificaciones push.')
     }
   }
 
@@ -1672,9 +1686,21 @@ export default function DashboardPage() {
       const { error: seedErr } = await supabase.from('matches').insert(demoMatches)
       if (seedErr) throw seedErr
       await loadMatchesAndPredictions(userId)
+
+      const session = await supabase.auth.getSession()
+      const token = session.data.session?.access_token
+      if (token) {
+        const res = await fetch('/api/init-admin', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (res.ok) {
+          setAdminMode(true)
+        }
+      }
     } catch (err: any) {
       console.error(err)
-      setError('Error al sembrar partidos: ' + err.message)
+      setError('Error al sembrar partidos: ' + friendlyError(err))
     } finally {
       setSeeding(false)
     }
@@ -2112,59 +2138,45 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Navigation Dropdown */}
-        <div className="relative mt-6 mb-2">
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); setNavDropdownOpen(!navDropdownOpen) }}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-white hover:border-slate-700 transition text-sm font-bold cursor-pointer"
-          >
-            <span>{viewMode === 'predictions' ? '🔮 Mis Pronósticos' : viewMode === 'schedule' ? '📅 Calendario' : viewMode === 'groups' ? '🏆 Grupos del Mundial' : viewMode === 'phases' ? '📊 Tabla por Fases' : viewMode === 'h2h' ? '🥊 Cara a Cara' : viewMode === 'stats' ? '📈 Mis Estadísticas' : viewMode === 'trivia' ? '🧠 Trivia Diaria' : viewMode === 'live_matches' ? '⚡ Partidos en Vivo' : viewMode === 'badges' ? '🏆 Insignias' : viewMode === 'news_info' ? '📰 Noticias e Info' : '🔧 Panel Admin'}</span>
-            <svg className={`w-3 h-3 transition-transform ${navDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7"></path>
-            </svg>
-          </button>
-
-          {navDropdownOpen && (
-            <div className="absolute left-0 mt-2 w-60 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl shadow-black/40 z-50 overflow-hidden animate-fadeIn">
-              {[
-                { key: 'predictions' as const, label: '🔮 Mis Pronósticos' },
-                { key: 'schedule' as const, label: '📅 Calendario' },
-                { key: 'groups' as const, label: '🏆 Grupos del Mundial' },
-                { key: 'phases' as const, label: '📊 Tabla por Fases' },
-                { key: 'h2h' as const, label: '🥊 Cara a Cara' },
-                { key: 'stats' as const, label: '📈 Mis Estadísticas' },
-                { key: 'trivia' as const, label: '🧠 Trivia Diaria' },
-                { key: 'live_matches' as const, label: '⚡ Partidos en Vivo' },
-                { key: 'badges' as const, label: '🏆 Colección de Insignias' },
-                { key: 'news_info' as const, label: '📰 Noticias e Info' },
-              ].map((item) => (
-                <button
-                  key={item.key}
-                  type="button"
-                  onClick={() => { setViewMode(item.key); setNavDropdownOpen(false) }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-slate-800/60 transition cursor-pointer ${
-                    viewMode === item.key ? 'text-primary font-extrabold' : 'text-slate-300 font-semibold'
-                  }`}
-                >
-                  {item.label}
-                </button>
-              ))}
-              {username.toLowerCase() === 'admin' && (
-                <>
-                  <div className="border-t border-slate-800"></div>
-                  <button
-                    type="button"
-                    onClick={() => { setViewMode('admin'); setNavDropdownOpen(false) }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-slate-800/60 transition cursor-pointer ${
-                      viewMode === 'admin' ? 'text-primary font-extrabold' : 'text-amber-400 font-semibold'
-                    }`}
-                  >
-                    🔧 Panel Admin
-                  </button>
-                </>
-              )}
-            </div>
+        {/* Navigation Tabs */}
+        <div className="flex gap-1.5 mt-6 mb-2 overflow-x-auto pb-1 scrollbar-hide">
+          {([
+            { key: 'predictions' as const, label: '🔮 Pronósticos' },
+            { key: 'schedule' as const, label: '📅 Calendario' },
+            { key: 'groups' as const, label: '🏆 Grupos' },
+            { key: 'phases' as const, label: '📊 Fases' },
+            { key: 'h2h' as const, label: '🥊 C a C' },
+            { key: 'stats' as const, label: '📈 Stats' },
+            { key: 'trivia' as const, label: '🧠 Trivia' },
+            { key: 'live_matches' as const, label: '⚡ En Vivo' },
+            { key: 'badges' as const, label: '🏆 Insignias' },
+            { key: 'news_info' as const, label: '📰 Noticias' },
+          ] as const).map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => setViewMode(item.key)}
+              className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${
+                viewMode === item.key
+                  ? 'bg-primary text-white shadow-lg shadow-primary/20'
+                  : 'bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800'
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
+          {adminMode && (
+            <button
+              type="button"
+              onClick={() => setViewMode('admin')}
+              className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${
+                viewMode === 'admin'
+                  ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20'
+                  : 'bg-slate-900 text-amber-400 hover:text-amber-300 hover:bg-slate-800 border border-slate-800'
+              }`}
+            >
+              🔧 Admin
+            </button>
           )}
         </div>
 
@@ -3629,7 +3641,7 @@ export default function DashboardPage() {
                     setChangePwCurrent('')
                     setChangePwNew('')
                   } catch (err: any) {
-                    setChangePwMsg({ text: err.message || 'Error al cambiar la contraseña.', type: 'error' })
+                    setChangePwMsg({ text: friendlyError(err) || 'Error al cambiar la contraseña.', type: 'error' })
                   } finally {
                     setChangingPw(false)
                   }
@@ -4186,7 +4198,7 @@ export default function DashboardPage() {
                         if (!res.ok) throw new Error(data.error)
                         toast.success(`¡Correo enviado a ${data.sent_to} usuario${data.sent_to !== 1 ? 's' : ''}!`)
                       } catch (err: any) {
-                        toast.error(err.message || 'Error al enviar correos.')
+                        toast.error(friendlyError(err) || 'Error al enviar correos.')
                       } finally {
                         setSendingDailyEmail(false)
                       }
@@ -4659,6 +4671,31 @@ export default function DashboardPage() {
           badge={celebratingBadge}
           onClose={handleCloseBadgeOverlay}
         />
+
+        {showOnboarding && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-fadeIn">
+              <h2 className="text-lg font-black text-white mb-2">🎉 ¡Bienvenido a la Quiniela del Mundial!</h2>
+              <p className="text-sm text-slate-400 mb-4">
+                Aquí predecirás los resultados del Mundial 2026 y competirás con tu familia.
+              </p>
+              <ul className="space-y-2 mb-6 text-sm text-slate-300">
+                <li>🔮 <strong>Pronósticos</strong> — Predice el marcador de cada partido</li>
+                <li>📅 <strong>Calendario</strong> — Ve los próximos partidos</li>
+                <li>🏆 <strong>Grupos</strong> — Tabla de posiciones por grupo</li>
+                <li>📊 <strong>Fases</strong> — Puntajes por fase del torneo</li>
+                <li>🥊 <strong>Cara a Cara</strong> — Compara tus pronósticos con otros</li>
+                <li>🧠 <strong>Trivia</strong> — Responde la trivia diaria</li>
+              </ul>
+              <button
+                onClick={() => { setShowOnboarding(false); localStorage.setItem('onboarding_done', '1') }}
+                className="w-full px-5 py-3 rounded-xl bg-gradient-to-r from-primary to-blue-600 text-white font-black text-xs uppercase tracking-wider transition cursor-pointer"
+              >
+                ¡Comenzar!
+              </button>
+            </div>
+          </div>
+        )}
 
       </div>
     </div>

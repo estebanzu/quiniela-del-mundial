@@ -20,14 +20,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
     }
 
-    // Verify the requester is admin
+    // Verify the requester is admin via server-side token
     const token = authHeader.replace('Bearer ', '')
-    const { data: { user }, error: authErr } = await createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    ).auth.getUser(token)
+    const { data: { user }, error: authErr } = await supabaseAdmin.auth.getUser(token)
 
-    if (authErr || !user || user.email !== 'admin@quiniela.local') {
+    if (authErr || !user || user.user_metadata?.is_admin !== true) {
       return NextResponse.json({ error: 'Solo el administrador puede enviar correos.' }, { status: 403 })
     }
 

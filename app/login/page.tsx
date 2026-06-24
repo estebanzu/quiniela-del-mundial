@@ -113,7 +113,7 @@ export default function LoginPage() {
       setMessage(`Se envió un enlace de recuperación al correo asociado a "${username}". Revisa tu bandeja de entrada.`)
     } catch (err: any) {
       console.error(err)
-      setError(err.message || 'Error al intentar recuperar la contraseña. Contacta al administrador.')
+      setError('No se pudo enviar el correo de recuperación. Verifica que el usuario existe y tiene un correo de recuperación registrado.')
     } finally {
       setLoading(false)
     }
@@ -218,7 +218,7 @@ export default function LoginPage() {
       } else if (err.message === 'Invalid login credentials') {
         customError = 'Usuario o contraseña incorrectos.'
       } else {
-        customError = err.message || customError
+        customError = 'Error inesperado. Intenta de nuevo.'
       }
       setError(customError)
     } finally {
@@ -485,6 +485,10 @@ export default function LoginPage() {
             </div>
           </div>
 
+          <p className="text-[10px] text-slate-500 leading-relaxed mb-1">
+            Ingresa solo tu <strong>nombre de usuario</strong>. La app usa internamente <span className="font-mono text-slate-400">usuario@quiniela.local</span> para tu cuenta — no necesitas un correo real.
+          </p>
+
           {tab === 'register' && (
             <div>
               <label htmlFor="email" className="block text-[10px] font-black uppercase tracking-wider text-slate-400">
@@ -511,6 +515,7 @@ export default function LoginPage() {
 
           <div>
             <label htmlFor="password" className="block text-[10px] font-black uppercase tracking-wider text-slate-400">
+              Contraseña
             </label>
             <div className="relative mt-1.5">
               <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-500">
