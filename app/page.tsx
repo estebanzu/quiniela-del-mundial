@@ -2233,8 +2233,7 @@ export default function DashboardPage() {
                       </svg>
                     </div>
                     <div className="min-w-0">
-                      <span className="hidden sm:block text-[10px] uppercase font-bold text-slate-500 tracking-wider">Pronósticos</span>
-                      <span className="sm:hidden block text-[8px] uppercase font-bold text-slate-500 tracking-tighter">Pronós.</span>
+                      <span className="block text-[8px] sm:text-[10px] uppercase font-bold text-slate-500 tracking-wider">Jugadas</span>
                       <span className="text-sm sm:text-xl font-black text-slate-200 block truncate">{predictedCount}/{matches.length}</span>
                     </div>
                   </div>
