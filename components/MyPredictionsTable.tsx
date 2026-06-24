@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import type { Match, Prediction } from '../lib/types'
 import { tTeam } from '../lib/translations'
 
@@ -15,6 +15,26 @@ export function MyPredictionsTable({
 }: MyPredictionsTableProps) {
   const [selectedPhase, setSelectedPhase] = useState<string>('todos')
   const [selectedStatus, setSelectedStatus] = useState<'todos' | 'finalizados' | 'pendientes'>('todos')
+  const [apiMatches, setApiMatches] = useState<Record<number, { score: [number, number] | null; status: string }>>({})
+  const [loadingApi, setLoadingApi] = useState(false)
+
+  useEffect(() => {
+    async function fetchApiMatches() {
+      try {
+        setLoadingApi(true)
+        const res = await fetch('/api/wcup-results')
+        const data = await res.json()
+        if (data.success && data.matches) {
+          setApiMatches(data.matches)
+        }
+      } catch (err) {
+        console.error('Error fetching wcup API matches:', err)
+      } finally {
+        setLoadingApi(false)
+      }
+    }
+    fetchApiMatches()
+  }, [])
 
   // Filter matches based on selections
   const filteredMatches = React.useMemo(() => {
@@ -63,12 +83,21 @@ export function MyPredictionsTable({
             📋 Historial de Pronósticos y Resultados
           </h4>
           <p className="text-xs text-slate-400 mt-1">
-            Compara tus pronósticos con los marcadores reales y revisa tus puntos ganados.
+            Compara tus pronósticos con los marcadores reales y la API oficial, y revisa tus puntos ganados.
           </p>
         </div>
 
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-2">
+          {loadingApi && (
+            <span className="text-[10px] text-slate-500 font-bold flex items-center gap-1.5 mr-2">
+              <svg className="animate-spin h-3.5 w-3.5 text-primary" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              Sincronizando API...
+            </span>
+          )}
           <select
             value={selectedPhase}
             onChange={(e) => setSelectedPhase(e.target.value)}
@@ -106,7 +135,8 @@ export function MyPredictionsTable({
               <thead>
                 <tr className="border-b border-slate-800 bg-slate-900/60 text-slate-400 font-bold uppercase text-[10px] tracking-wider">
                   <th className="py-3.5 px-4 font-black">Partido</th>
-                  <th className="py-3.5 px-4 text-center whitespace-nowrap min-w-[100px]">Resultado Real</th>
+                  <th className="py-3.5 px-4 text-center whitespace-nowrap min-w-[100px]">Resultado BD</th>
+                  <th className="py-3.5 px-4 text-center whitespace-nowrap min-w-[120px]">Resultado API (En Vivo)</th>
                   <th className="py-3.5 px-4 text-center whitespace-nowrap min-w-[100px]">Tu Pronóstico</th>
                   <th className="py-3.5 px-4 text-center whitespace-nowrap min-w-[90px]">Puntos</th>
                 </tr>
@@ -116,12 +146,53 @@ export function MyPredictionsTable({
                   const isFinished = match.status === 'finished'
                   const isLive = match.status === 'live'
                   const pred = predictions[match.id]
+                  const apiMatch = apiMatches[match.id]
+
+                  const dbHome = match.home_score
+                  const dbAway = match.away_score
+                  const apiHome = apiMatch?.score?.[0]
+                  const apiAway = apiMatch?.score?.[1]
+
+                  // Check if there is a discrepancy between local database and the API
+                  const isDiscrepancy =
+                    apiMatch &&
+                    apiMatch.score !== null &&
+                    (dbHome !== null || dbAway !== null) &&
+                    (dbHome !== apiHome || dbAway !== apiAway)
 
                   let matchResultEl = <span className="text-slate-500 font-semibold">—</span>
                   if (isFinished || isLive) {
                     matchResultEl = (
-                      <span className="inline-block px-2.5 py-1 rounded bg-slate-900 border border-slate-800 text-slate-200 font-mono font-bold text-xs">
-                        {match.home_score} - {match.away_score}
+                      <span
+                        className={`inline-block px-2.5 py-1 rounded border font-mono font-bold text-xs ${
+                          isDiscrepancy
+                            ? 'bg-rose-500/10 border-rose-500/30 text-rose-450 hover:bg-rose-500/20'
+                            : 'bg-slate-900 border-slate-800 text-slate-200'
+                        } transition-colors`}
+                        title={isDiscrepancy ? '⚠️ Diferente del marcador API oficial' : ''}
+                      >
+                        {dbHome} - {dbAway}
+                        {isDiscrepancy && <span className="ml-1 text-[10px]" title="Difiere de la API">⚠️</span>}
+                      </span>
+                    )
+                  }
+
+                  let apiResultEl = <span className="text-slate-500 font-semibold">—</span>
+                  if (apiMatch && apiMatch.score !== null) {
+                    const isApiLive = (apiMatch.status || '').toLowerCase() === 'live' || (apiMatch.status || '').toLowerCase() === 'in-progress'
+                    apiResultEl = (
+                      <span
+                        className={`inline-block px-2.5 py-1 rounded border font-mono font-bold text-xs ${
+                          isDiscrepancy
+                            ? 'bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20'
+                            : isApiLive
+                            ? 'bg-rose-500/5 border-rose-500/20 text-rose-400'
+                            : 'bg-slate-900/60 border-slate-800 text-slate-400'
+                        } transition-colors`}
+                        title={isDiscrepancy ? 'El marcador de la API difiere del marcador en base de datos.' : ''}
+                      >
+                        {apiHome} - {apiAway}
+                        {isApiLive && <span className="ml-1 text-[8px] text-rose-500 animate-pulse">●</span>}
                       </span>
                     )
                   }
@@ -177,9 +248,14 @@ export function MyPredictionsTable({
                         </div>
                       </td>
 
-                      {/* Actual Result */}
+                      {/* Actual Result (DB) */}
                       <td className="py-3.5 px-4 text-center">
                         {matchResultEl}
+                      </td>
+
+                      {/* API Result */}
+                      <td className="py-3.5 px-4 text-center">
+                        {apiResultEl}
                       </td>
 
                       {/* User's Prediction */}
@@ -202,3 +278,4 @@ export function MyPredictionsTable({
     </div>
   )
 }
+
