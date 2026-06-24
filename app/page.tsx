@@ -412,6 +412,7 @@ export default function DashboardPage() {
   const [seedingDummies, setSeedingDummies] = useState(false)
   const [deletingDummies, setDeletingDummies] = useState(false)
   const [adminMode, setAdminMode] = useState(false)
+  const [matchSearch, setMatchSearch] = useState('')
   const [leaderboard, setLeaderboard] = useState<{ username: string; total_points: number; predictions_count: number; rank_change?: number | null }[]>([])
   const [leaderboardFilter, setLeaderboardFilter] = useState<'top' | 'near'>('top')
   const [expandedUser, setExpandedUser] = useState<string | null>(null)
@@ -1729,13 +1730,30 @@ export default function DashboardPage() {
   })()
   const isOnFire = currentStreak >= 3
 
-  // Filter matches based on selection
+  // Filter matches based on selection and search query
   const filteredMatches = matches.filter((match) => {
-    if (filter === 'pending') {
-      return match.status === 'pending'
-    }
-    if (filter === 'finished') {
-      return match.status === 'finished'
+    if (filter === 'pending' && match.status !== 'pending') return false
+    if (filter === 'finished' && match.status !== 'finished') return false
+
+    if (matchSearch.trim()) {
+      const query = matchSearch.toLowerCase().trim()
+      const homeES = tTeam(match.home_team).toLowerCase()
+      const awayES = tTeam(match.away_team).toLowerCase()
+      const homeEN = match.home_team.toLowerCase()
+      const awayEN = match.away_team.toLowerCase()
+      const matchIdStr = match.id.toString()
+      const matchIdHash = `#${match.id}`
+
+      const matchesQuery = 
+        homeES.includes(query) ||
+        awayES.includes(query) ||
+        homeEN.includes(query) ||
+        awayEN.includes(query) ||
+        matchIdStr === query ||
+        matchIdHash === query ||
+        (match.stage_group && match.stage_group.toLowerCase().includes(query))
+
+      if (!matchesQuery) return false
     }
     return true
   })
@@ -2590,6 +2608,33 @@ export default function DashboardPage() {
                     </button>
                   )}
                 </div>
+
+                {/* Match Search Input */}
+                <div className="relative w-full sm:w-72">
+                  <input
+                    type="text"
+                    value={matchSearch}
+                    onChange={(e) => setMatchSearch(e.target.value)}
+                    placeholder="Buscar partido (ej. Argentina, #5)..."
+                    className="w-full px-4 py-2.5 pl-10 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 text-xs font-semibold placeholder-slate-550 outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition"
+                  />
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </div>
+                  {matchSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setMatchSearch('')}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-200 cursor-pointer"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Day-by-day predictions navigation */}
@@ -2634,7 +2679,38 @@ export default function DashboardPage() {
                       ))}
                     </div>
 
-                    {predDays.length === 0 ? (
+                    {matchSearch.trim() !== '' ? (
+                      <div className="space-y-5">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2 mb-2 flex items-center gap-1.5">
+                          <span>🔍 Resultados para "{matchSearch}":</span>
+                          <span className="text-primary">{filteredMatches.length} partido{filteredMatches.length !== 1 ? 's' : ''} encontrado{filteredMatches.length !== 1 ? 's' : ''}</span>
+                        </div>
+                        {filteredMatches.length === 0 ? (
+                          <div className="flex flex-col items-center justify-center p-12 text-center rounded-[32px] bg-slate-900/20 border border-slate-900">
+                            <p className="text-slate-400 font-semibold">No se encontraron partidos para la búsqueda.</p>
+                          </div>
+                        ) : (
+                          filteredMatches.map((match) => (
+                            <MatchCard
+                              key={match.id}
+                              userId={userId!}
+                              match={match}
+                              prediction={predictions[match.id]}
+                              isAdmin={username.toLowerCase() === 'admin'}
+                              adminMode={adminMode}
+                              onMatchUpdate={handleMatchUpdate}
+                              onOpenChat={setActiveChat}
+                              onSave={async (savedPrediction) => {
+                                setPredictions((current) => ({
+                                  ...current,
+                                  [match.id]: savedPrediction,
+                                }))
+                              }}
+                            />
+                          ))
+                        )}
+                      </div>
+                    ) : predDays.length === 0 ? (
                       <div className="flex flex-col items-center justify-center p-12 text-center rounded-[32px] bg-slate-900/20 border border-slate-900">
                         <p className="text-slate-400 font-semibold">No se encontraron partidos en esta sección.</p>
                         {matches.length === 0 && (
