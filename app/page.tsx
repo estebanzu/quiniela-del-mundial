@@ -8,6 +8,7 @@ import NotificationBell from '../components/NotificationBell'
 import { TriviaView } from '../components/TriviaView'
 import LiveMatchesView from '../components/LiveMatchesView'
 import { MatchCard } from '../components/MatchCard'
+import multiavatar from '@multiavatar/multiavatar/esm'
 import { MatchChat } from '../components/MatchChat'
 import { toBlob } from 'html-to-image'
 import { BADGES_CATALOG, type Badge } from '../lib/badges'
@@ -377,7 +378,7 @@ export default function DashboardPage() {
   
   // Custom user avatar states
   const [avatarDropdownOpen, setAvatarDropdownOpen] = useState(false)
-  const [avatarStyle, setAvatarStyle] = useState<'initials' | 'fifa' | 'gold'>('initials')
+  const [avatarStyle, setAvatarStyle] = useState<'initials' | 'fifa' | 'gold' | 'multiavatar'>('initials')
   const [userProfiles, setUserProfiles] = useState<Record<string, string>>({})
   const [pushNotificationsEnabled, setPushNotificationsEnabled] = useState(false)
   const [userFavoriteTeams, setUserFavoriteTeams] = useState<Record<string, string>>({})
@@ -396,7 +397,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('avatar_style') as 'initials' | 'fifa' | 'gold' | null
+      const stored = localStorage.getItem('avatar_style') as 'initials' | 'fifa' | 'gold' | 'multiavatar' | null
       if (stored) setAvatarStyle(stored)
     }
   }, [])
@@ -1198,6 +1199,10 @@ export default function DashboardPage() {
     } else if (rowAvatarType === 'fifa') {
       avatarEl = <video src="/fifaloading.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover" />
       borderClass = 'border-cyan-500 shadow-sm shadow-cyan-500/10'
+    } else if (rowAvatarType === 'multiavatar') {
+      const svg = multiavatar(row.username, false)
+      avatarEl = <div className="w-full h-full flex items-center justify-center" dangerouslySetInnerHTML={{ __html: svg }} />
+      borderClass = 'border-emerald-500 shadow-sm shadow-emerald-500/10'
     } else {
       const charCodeSum = row.username.split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0)
       const gradients = [
@@ -1926,6 +1931,8 @@ export default function DashboardPage() {
                     <video src="/avatar-animado.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover" />
                   ) : avatarStyle === 'fifa' ? (
                     <video src="/fifaloading.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover" />
+                  ) : avatarStyle === 'multiavatar' ? (
+                    <div className="w-full h-full flex items-center justify-center scale-125" dangerouslySetInnerHTML={{ __html: multiavatar(username, false) }} />
                   ) : (
                     <span className="text-xs font-black uppercase text-cyan-400">
                       {username.slice(0, 2)}
@@ -1947,6 +1954,8 @@ export default function DashboardPage() {
                             <video src="/avatar-animado.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover" />
                           ) : avatarStyle === 'fifa' ? (
                             <video src="/fifaloading.mp4" autoPlay loop muted playsInline className="w-full h-full object-cover" />
+                          ) : avatarStyle === 'multiavatar' ? (
+                            <div className="w-full h-full flex items-center justify-center scale-125" dangerouslySetInnerHTML={{ __html: multiavatar(username, false) }} />
                           ) : (
                             <span className="text-xs font-black text-cyan-400 uppercase">{username.slice(0, 2)}</span>
                           )}
@@ -1970,6 +1979,7 @@ export default function DashboardPage() {
                       
                       {[
                         { key: 'initials', label: '🔠 Iniciales', desc: 'Avatar clásico con tus iniciales.' },
+                        { key: 'multiavatar', label: '🎨 Multiavatar', desc: 'Avatar único generado con tu nombre.' },
                         { key: 'fifa', label: '⚽ FIFA Loop', desc: 'Video en bucle de la Copa FIFA.' },
                         { key: 'gold', label: '🏆 Oro Animado', desc: 'Trofeo de oro interactivo.' }
                       ].map((styleOption) => (
@@ -2232,7 +2242,7 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Score Metrics Grid */}
-                <div className="grid grid-cols-3 gap-1.5 sm:gap-3">
+                <div className="grid grid-cols-1 gap-1.5 sm:gap-3">
                   <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-2.5 sm:p-4 flex items-center gap-2 sm:gap-3 min-w-0">
                     <div className="w-8 h-8 sm:w-10 sm:h-10 bg-amber-500/10 rounded-xl flex items-center justify-center text-amber-500 shrink-0">
                       <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2241,7 +2251,7 @@ export default function DashboardPage() {
                     </div>
                     <div className="min-w-0">
                       <span className="block text-[8px] sm:text-[10px] uppercase font-bold text-slate-500 tracking-wider">Puntos</span>
-                      <span className="text-sm sm:text-xl font-black text-amber-400 block truncate">{totalPoints}</span>
+                      <span className="text-xs sm:text-base font-black text-amber-400 block truncate">{totalPoints}</span>
                     </div>
                   </div>
 
@@ -2253,7 +2263,7 @@ export default function DashboardPage() {
                     </div>
                     <div className="min-w-0">
                       <span className="block text-[8px] sm:text-[10px] uppercase font-bold text-slate-500 tracking-wider">Jugadas</span>
-                      <span className="text-sm sm:text-xl font-black text-slate-200 block truncate">{predictedCount}/{matches.length}</span>
+                      <span className="text-xs sm:text-base font-black text-slate-200 block truncate">{predictedCount}/{matches.length}</span>
                     </div>
                   </div>
 
@@ -2263,7 +2273,7 @@ export default function DashboardPage() {
                     </div>
                     <div className="min-w-0">
                       <span className="block text-[8px] sm:text-[10px] uppercase font-bold text-slate-500 tracking-wider">Racha</span>
-                      <span className={`text-sm sm:text-xl font-black block truncate ${isOnFire ? 'text-orange-400' : 'text-slate-400'}`}>{currentStreak}</span>
+                      <span className={`text-xs sm:text-base font-black block truncate ${isOnFire ? 'text-orange-400' : 'text-slate-400'}`}>{currentStreak}</span>
                       {isOnFire && <span className="block text-[7px] sm:text-[9px] font-bold text-orange-400 uppercase tracking-tight">On Fire!</span>}
                     </div>
                   </div>
