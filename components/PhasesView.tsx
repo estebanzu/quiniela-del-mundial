@@ -1,5 +1,9 @@
 'use client'
 
+import { useRef, useState, useCallback } from 'react'
+import { toBlob } from 'html-to-image'
+import toast from 'react-hot-toast'
+
 type PhaseRow = {
   username: string
   fase1: number
@@ -17,6 +21,9 @@ interface PhasesViewProps {
 }
 
 export function PhasesView({ phaseLeaderboard, username }: PhasesViewProps) {
+  const phasesTableRef = useRef<HTMLDivElement>(null)
+  const [exportingPng, setExportingPng] = useState(false)
+
   const maxes = {
     f1: phaseLeaderboard.length ? Math.max(...phaseLeaderboard.map(u => Number(u.fase1) || 0)) : 0,
     f2: phaseLeaderboard.length ? Math.max(...phaseLeaderboard.map(u => Number(u.fase2) || 0)) : 0,
@@ -26,18 +33,96 @@ export function PhasesView({ phaseLeaderboard, username }: PhasesViewProps) {
     f6: phaseLeaderboard.length ? Math.max(...phaseLeaderboard.map(u => Number(u.fase6) || 0)) : 0,
   }
 
+  const handleExportPhasesAsPng = useCallback(async () => {
+    if (!phasesTableRef.current || exportingPng) return
+    setExportingPng(true)
+    try {
+      const el = phasesTableRef.current
+      const originalBg = el.style.background
+      const originalPadding = el.style.padding
+      const originalBorderRadius = el.style.borderRadius
+      el.style.background = '#0f172a'
+      el.style.padding = '24px'
+      el.style.borderRadius = '0'
+
+      const blob = await toBlob(el, {
+        backgroundColor: '#0f172a',
+        pixelRatio: 2,
+        cacheBust: true,
+      })
+
+      el.style.background = originalBg
+      el.style.padding = originalPadding
+      el.style.borderRadius = originalBorderRadius
+
+      if (!blob) throw new Error('Error al generar la imagen.')
+
+      const file = new File([blob], 'quiniela-posiciones.png', { type: 'image/png' })
+
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({
+          title: '🏆 Quiniela Mundial — Tabla de Posiciones',
+          text: '¡Mira la tabla de posiciones de la Quiniela del Mundial! ⚽',
+          files: [file],
+        })
+        toast.success('¡Imagen compartida!')
+      } else {
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = 'quiniela-posiciones.png'
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+        toast.success('¡Imagen descargada!')
+      }
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name !== 'AbortError') {
+        console.error('Export PNG error:', err)
+        toast.error('Error al exportar la imagen.')
+      }
+    } finally {
+      setExportingPng(false)
+    }
+  }, [exportingPng])
+
   return (
     <section className="mt-8 animate-fadeIn">
-      <div className="mb-6">
-        <h3 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-          📊 Tabla de Posiciones por Fases
-        </h3>
-        <p className="text-sm text-slate-400 mt-1">
-          Visualiza el desglose de puntos obtenidos en cada una de las 6 fases del torneo. ¡El ganador de cada fase recibe un trofeo 🏆!
-        </p>
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div>
+          <h3 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+            📊 Tabla de Posiciones por Fases
+          </h3>
+          <p className="text-sm text-slate-400 mt-1">
+            Visualiza el desglose de puntos obtenidos en cada una de las 6 fases del torneo. ¡El ganador de cada fase recibe un trofeo 🏆!
+          </p>
+        </div>
+        {phaseLeaderboard.length > 0 && (
+          <button
+            type="button"
+            onClick={handleExportPhasesAsPng}
+            disabled={exportingPng}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-xs font-bold uppercase tracking-wider hover:bg-emerald-500/20 hover:border-emerald-500/50 transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0 group"
+          >
+            {exportingPng ? (
+              <>
+                <span className="animate-spin h-3.5 w-3.5 border-2 border-emerald-400 border-t-transparent rounded-full"></span>
+                Exportando…
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4 transition-transform group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V3" />
+                </svg>
+                Exportar PNG
+              </>
+            )}
+          </button>
+        )}
       </div>
 
-      <div className="glass-card overflow-hidden">
+      <div ref={phasesTableRef} className="glass-card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-sm">
             <thead>
@@ -107,7 +192,6 @@ export function PhasesView({ phaseLeaderboard, username }: PhasesViewProps) {
         </div>
       </div>
 
-      {/* Resultados parciales */}
       {phaseLeaderboard.length > 0 && (
         <div className="mt-6 bg-slate-900/40 border border-slate-800 rounded-2xl p-5">
           <h4 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
@@ -138,7 +222,6 @@ export function PhasesView({ phaseLeaderboard, username }: PhasesViewProps) {
             })}
           </div>
 
-          {/* Líder general */}
           <div className="mt-4 pt-4 border-t border-slate-800">
             <div className="bg-gradient-to-r from-amber-500/10 to-transparent border border-amber-500/20 rounded-xl p-4 flex items-center gap-3">
               <span className="text-2xl">🏆</span>

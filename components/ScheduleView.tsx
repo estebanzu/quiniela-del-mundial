@@ -1,13 +1,24 @@
 'use client'
 
 import type { Match } from '../lib/types'
+import { tTeam } from '../lib/translations'
+
+const TZ = 'America/Costa_Rica'
+
+function dateKeyInTZ(d: Date): string {
+  return d.toLocaleDateString('sv-SE', { timeZone: TZ })
+}
+
+function todayKeyInTZ(): string {
+  return new Date().toLocaleDateString('sv-SE', { timeZone: TZ })
+}
 
 const WORLD_CUP_START = new Date('2026-06-11T00:00:00')
 
 function buildScheduleDays(matches: Match[]) {
   const dayMap: Record<string, Match[]> = {}
   matches.forEach((m) => {
-    const key = new Date(m.match_date).toISOString().split('T')[0]
+    const key = dateKeyInTZ(new Date(m.match_date))
     if (!dayMap[key]) dayMap[key] = []
     dayMap[key].push(m)
   })
@@ -25,11 +36,21 @@ interface ScheduleViewProps {
   matches: Match[]
   activeScheduleDayIndex: number
   setActiveScheduleDayIndex: React.Dispatch<React.SetStateAction<number>>
+  onOpenChat: (chatMeta: { id: number; homeTeam: string; awayTeam: string }) => void
+  userId: string | null
 }
 
-export function ScheduleView({ matches, activeScheduleDayIndex, setActiveScheduleDayIndex }: ScheduleViewProps) {
+export function ScheduleView({ matches, activeScheduleDayIndex, setActiveScheduleDayIndex, onOpenChat, userId }: ScheduleViewProps) {
   const scheduleDays = buildScheduleDays(matches)
-  const currentDayIdx = activeScheduleDayIndex < scheduleDays.length ? activeScheduleDayIndex : 0
+
+  const todayKey = todayKeyInTZ()
+  let defaultIdx = scheduleDays.findIndex(d => d.dateKey === todayKey)
+  if (defaultIdx === -1) {
+    defaultIdx = scheduleDays.findIndex(d => d.dateKey >= todayKey)
+    if (defaultIdx === -1) defaultIdx = 0
+  }
+
+  const currentDayIdx = activeScheduleDayIndex < scheduleDays.length ? activeScheduleDayIndex : defaultIdx
   const activeDay = scheduleDays[currentDayIdx]
 
   return (
@@ -49,7 +70,6 @@ export function ScheduleView({ matches, activeScheduleDayIndex, setActiveSchedul
         </div>
       ) : (
         <>
-          {/* Day Selector Row */}
           <div className="flex overflow-x-auto gap-2 mb-4 bg-slate-900/40 p-2 rounded-2xl border border-slate-800/40 [&::-webkit-scrollbar]:hidden [scrollbar-width:none] snap-x px-3 py-2.5 w-full">
             {scheduleDays.map((day, idx) => {
               const isActive = idx === currentDayIdx
@@ -70,7 +90,6 @@ export function ScheduleView({ matches, activeScheduleDayIndex, setActiveSchedul
             })}
           </div>
 
-          {/* Day Slider */}
           <div className="mb-6 px-2">
             <input
               type="range"
@@ -87,9 +106,7 @@ export function ScheduleView({ matches, activeScheduleDayIndex, setActiveSchedul
             </div>
           </div>
 
-          {/* Navigation + Card */}
           <div className="relative flex items-center justify-between gap-4 max-w-4xl mx-auto">
-            {/* Left Arrow */}
             <button
               onClick={() => setActiveScheduleDayIndex(prev => (prev === 0 ? scheduleDays.length - 1 : prev - 1))}
               className="w-12 h-12 rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-800 flex items-center justify-center text-slate-350 hover:text-white transition duration-300 shadow-md cursor-pointer shrink-0 hidden md:flex"
@@ -100,52 +117,80 @@ export function ScheduleView({ matches, activeScheduleDayIndex, setActiveSchedul
               </svg>
             </button>
 
-            {/* Day Card */}
-            <div className="flex-1 min-w-0">
+            <div className="w-full bg-slate-900/60 border border-slate-800/80 rounded-3xl backdrop-blur-md overflow-hidden p-6 md:p-8">
               {activeDay && (
-                <div className="glass-card p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h4 className="font-black text-lg text-slate-100">
-                      📅 {activeDay.label}
-                      {activeDay.dayNum > 0 && (
-                        <span className="ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-900 text-slate-400 border border-slate-800 uppercase tracking-widest">
-                          Día {activeDay.dayNum}
-                        </span>
-                      )}
-                    </h4>
-                    <span className="text-xs font-bold text-slate-400">{activeDay.matches.length} partido{activeDay.matches.length !== 1 ? 's' : ''}</span>
+                <>
+                  <div className="flex items-center justify-between pb-4 border-b border-slate-800/60 mb-5">
+                    <span className="font-black text-lg tracking-wider text-slate-100 flex items-center gap-2">
+                      <span className="text-primary">📅</span> {activeDay.label}
+                    </span>
+                    <span className="text-[10px] font-bold px-3 py-1 rounded-full bg-slate-950 text-slate-400 border border-slate-800 uppercase tracking-widest">
+                      {activeDay.dayNum > 0 ? `Día ${activeDay.dayNum}` : activeDay.dateKey} • {activeDay.matches.length} partido{activeDay.matches.length !== 1 ? 's' : ''}
+                    </span>
                   </div>
+
                   <div className="space-y-3">
-                    {activeDay.matches.map((m) => {
-                      const isFinished = m.status === 'finished'
-                      const matchTime = new Date(m.match_date).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+                    {activeDay.matches.map((match) => {
+                      const mDate = new Date(match.match_date)
+                      const mTime = mDate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: TZ })
+                      const isFinished = match.status === 'finished'
+
                       return (
-                        <div key={m.id} className={`flex items-center justify-between p-3.5 rounded-2xl border text-sm transition-colors ${isFinished ? 'bg-slate-900/30 border-slate-900' : 'bg-slate-950/60 border-slate-800/60'}`}>
-                          <div className="flex-1 text-right pr-3">
-                            <span className="font-extrabold text-slate-200">{m.home_team}</span>
+                        <div
+                          key={match.id}
+                          className="bg-slate-950/40 border border-slate-900 rounded-2xl p-4 flex flex-col gap-2"
+                        >
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-3 shrink-0">
+                              <span className="w-2 h-2 rounded-full bg-primary/60"></span>
+                              <div className="flex flex-col">
+                                <span className="text-sm font-black text-slate-300 font-mono">{mTime}</span>
+                                {(match.stage_group || match.venue) && (
+                                  <span className="text-[9px] text-slate-500 font-semibold max-w-[120px] truncate">
+                                    {match.stage_group || match.venue}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex-1 flex items-center justify-center gap-2 sm:gap-4 px-2">
+                              <span className="text-xs sm:text-sm font-extrabold text-slate-200 text-right flex-1 break-words leading-tight">{tTeam(match.home_team)}</span>
+                              <span className="text-[10px] font-bold text-slate-650 uppercase tracking-widest shrink-0">vs</span>
+                              <span className="text-xs sm:text-sm font-extrabold text-slate-200 text-left flex-1 break-words leading-tight">{tTeam(match.away_team)}</span>
+                            </div>
                           </div>
-                          <div className="flex flex-col items-center gap-0.5 min-w-[80px]">
-                            {isFinished ? (
-                              <span className="font-black text-primary font-mono text-base">{m.home_score} - {m.away_score}</span>
-                            ) : (
-                              <span className="font-bold text-slate-400 text-xs">{matchTime}</span>
+
+                          <div className="text-center flex flex-col items-center gap-2.5">
+                            <div>
+                              {isFinished ? (
+                                <span className="inline-flex items-center justify-center font-mono font-black text-sm bg-slate-950/60 text-primary px-2.5 py-1 rounded-lg border border-slate-900">
+                                  {match.home_score} - {match.away_score}
+                                </span>
+                              ) : (
+                                <span className="inline-block text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded bg-slate-900 border border-slate-850 text-slate-500">
+                                  Pendiente
+                                </span>
+                              )}
+                            </div>
+
+                            {userId && (
+                              <button
+                                type="button"
+                                onClick={() => onOpenChat({ id: match.id, homeTeam: match.home_team, awayTeam: match.away_team })}
+                                className="px-3 py-1.5 rounded-xl border bg-slate-950 border-slate-900 hover:border-slate-800 text-slate-400 hover:text-slate-200 text-[10px] uppercase font-extrabold tracking-wider transition duration-150 flex items-center gap-1.5 cursor-pointer active:scale-95"
+                              >
+                                💬 Chat de Partido
+                              </button>
                             )}
-                            <span className={`text-[9px] uppercase font-bold tracking-wider ${isFinished ? 'text-slate-500' : 'text-primary'}`}>
-                              {isFinished ? 'Final' : 'vs'}
-                            </span>
-                          </div>
-                          <div className="flex-1 text-left pl-3">
-                            <span className="font-extrabold text-slate-200">{m.away_team}</span>
                           </div>
                         </div>
                       )
                     })}
                   </div>
-                </div>
+                </>
               )}
             </div>
 
-            {/* Right Arrow */}
             <button
               onClick={() => setActiveScheduleDayIndex(prev => (prev === scheduleDays.length - 1 ? 0 : prev + 1))}
               className="w-12 h-12 rounded-full bg-slate-900 hover:bg-slate-800 border border-slate-800 flex items-center justify-center text-slate-350 hover:text-white transition duration-300 shadow-md cursor-pointer shrink-0 hidden md:flex"
@@ -157,13 +202,14 @@ export function ScheduleView({ matches, activeScheduleDayIndex, setActiveSchedul
             </button>
           </div>
 
-          {/* Mobile navigation */}
-          <div className="flex justify-between items-center mt-6 md:hidden px-2">
+          <div className="flex justify-between items-center mt-6 md:hidden px-4">
             <button
               onClick={() => setActiveScheduleDayIndex(prev => (prev === 0 ? scheduleDays.length - 1 : prev - 1))}
               className="px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs font-bold text-slate-300 hover:text-white flex items-center gap-2 cursor-pointer"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-4 h-4">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+              </svg>
               Anterior
             </button>
             <span className="text-xs text-slate-450 font-semibold uppercase tracking-wider">
@@ -174,7 +220,9 @@ export function ScheduleView({ matches, activeScheduleDayIndex, setActiveSchedul
               className="px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs font-bold text-slate-300 hover:text-white flex items-center gap-2 cursor-pointer"
             >
               Siguiente
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-4 h-4">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+              </svg>
             </button>
           </div>
         </>
