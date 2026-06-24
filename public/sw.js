@@ -27,10 +27,12 @@ self.addEventListener('fetch', (event) => {
   const { request } = event
   const url = new URL(request.url)
 
-  // Skip non-GET, non-http(s) schemes (chrome-extension, etc), and supabase
+  // Skip non-GET, non-http(s) schemes (chrome-extension, etc)
   if (request.method !== 'GET') return
   if (!url.protocol.startsWith('http')) return
-  if (url.hostname.includes('supabase')) return
+
+  // Skip external requests (GIPHY, supabase, etc) — let browser handle them directly
+  if (url.origin !== self.location.origin) return
 
   // Navigation requests (HTML pages): ALWAYS network-first, no caching
   if (request.mode === 'navigate') {
