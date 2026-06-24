@@ -1706,8 +1706,10 @@ export default function DashboardPage() {
     }
   }
 
-  // Calculate user total score from predictions
-  const totalPoints = Object.values(predictions).reduce((sum, pred) => sum + (pred.points || 0), 0)
+  // Calculate user total score from leaderboard (includes trivia points)
+  const predictionPoints = Object.values(predictions).reduce((sum, pred) => sum + (pred.points || 0), 0)
+  const leaderboardMe = leaderboard.find(u => u.username.toLowerCase() === username.toLowerCase())
+  const totalPoints = leaderboardMe ? Number(leaderboardMe.total_points) : predictionPoints
   
   // Calculate completed predictions count
   const predictedCount = Object.keys(predictions).length
