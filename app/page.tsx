@@ -14,7 +14,7 @@ import { BADGES_CATALOG, type Badge } from '../lib/badges'
 import BadgeUnlockOverlay from '../components/BadgeUnlockOverlay'
 import NewsInfoView from '../components/NewsInfoView'
 import LiveMatchTicker from '../components/LiveMatchTicker'
-import { PredictionsMatrix } from '../components/PredictionsMatrix'
+import { MyPredictionsTable } from '../components/MyPredictionsTable'
 
 const TZ = 'America/Costa_Rica' // UTC-6
 
@@ -3615,12 +3615,9 @@ export default function DashboardPage() {
               </div>
 
               {/* Predictions Matrix */}
-              <PredictionsMatrix
+              <MyPredictionsTable
                 matches={matches}
-                leaderboard={leaderboard}
-                currentUserId={userId}
-                currentUsername={username}
-                userProfileIds={userProfileIds}
+                predictions={predictions}
               />
 
               {/* Change Password */}
