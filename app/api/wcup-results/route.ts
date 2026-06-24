@@ -2,15 +2,13 @@ import { NextResponse } from 'next/server'
 
 export async function GET() {
   try {
-    const [liveRes, todayRes, resultsRes] = await Promise.all([
+    const [liveRes, allRes] = await Promise.all([
       fetch('https://wcup2026.org/api/data.php?action=live', { next: { revalidate: 0 } }),
-      fetch('https://wcup2026.org/api/data.php?action=today', { next: { revalidate: 0 } }),
-      fetch('https://wcup2026.org/api/data.php?action=results', { next: { revalidate: 0 } })
+      fetch('https://wcup2026.org/api/data.php?action=all', { next: { revalidate: 0 } })
     ])
 
     const liveData = liveRes.ok ? await liveRes.json() : { matches: [] }
-    const todayData = todayRes.ok ? await todayRes.json() : { matches: [] }
-    const resultsData = resultsRes.ok ? await resultsRes.json() : { matches: [] }
+    const allData = allRes.ok ? await allRes.json() : { matches: [] }
 
     const apiMatches: Record<number, { score: [number, number] | null; status: string }> = {}
     const addMatches = (matches: any[]) => {
@@ -25,8 +23,7 @@ export async function GET() {
       }
     }
 
-    addMatches(resultsData.matches)
-    addMatches(todayData.matches)
+    addMatches(allData.matches)
     addMatches(liveData.matches)
 
     return NextResponse.json({ success: true, matches: apiMatches })
