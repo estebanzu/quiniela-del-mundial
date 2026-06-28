@@ -8,7 +8,7 @@ NX        ?= npx
 TRIVY     ?= trivy
 GITLEAKS  ?= gitleaks
 
-.PHONY: help dev-app start stop clean clean-all build lint start-prod db-sync test-coverage check-security check-secrets
+.PHONY: help dev-app start stop clean clean-all build lint start-prod db-sync test-coverage check-security check-secrets typecheck check
 
 help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
@@ -136,3 +136,11 @@ check-secrets: ## Scan the repository to prevent accidental credential/token lea
 		echo "❌ Gitleaks is not installed. Please install gitleaks to run secret detection."; \
 		exit 1; \
 	fi
+
+typecheck: ## Validate TypeScript compilation structures
+	@echo "\033[34m🔷 Running TypeScript compilation check...\033[0m"
+	$(NX) tsc --noEmit
+
+check: check-secrets lint typecheck check-security test-coverage build ## Full quality gate execution
+	@echo "\033[32m\n✅ All static analysis, security gates, tests, and builds passed successfully!\033[0m"
+
