@@ -2198,7 +2198,6 @@ export default function DashboardPage() {
             { key: 'phases' as const, label: '📊 Fases' },
             { key: 'h2h' as const, label: '🥊 C a C' },
             { key: 'stats' as const, label: '📈 Stats' },
-            { key: 'trivia' as const, label: '🧠 Trivia' },
             { key: 'live_matches' as const, label: '⚡ En Vivo' },
             { key: 'badges' as const, label: '🏆 Insignias' },
             { key: 'news_info' as const, label: '📰 Noticias' },

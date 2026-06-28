@@ -3,7 +3,12 @@ PORT ?= 3000
 PIDFILE=.next-dev.pid
 LOGFILE=.next-dev.log
 
-.PHONY: help dev-app start stop clean clean-all build lint start-prod
+# Tools and Binaries
+NX        ?= npx
+TRIVY     ?= trivy
+GITLEAKS  ?= gitleaks
+
+.PHONY: help dev-app start stop clean clean-all build lint start-prod db-sync test-coverage check-security check-secrets
 
 help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
@@ -32,7 +37,7 @@ start: ## Start dev server in the background (PID log)
 	@sleep 1
 	@if [ -f "$(PIDFILE)" ] && kill -0 $$(cat "$(PIDFILE)") >/dev/null 2>&1; then \
 		echo "✅ Dev server started (PID $$(cat $(PIDFILE))). Logs: $(LOGFILE)"; \
-	else \
+		else \
 		echo "❌ Failed to start. Check $(LOGFILE)"; \
 		rm -f "$(PIDFILE)"; \
 		exit 1; \
@@ -85,3 +90,49 @@ clean: stop ## Stop server and remove build files/logs
 clean-all: clean ## Clean files and remove node_modules
 	rm -rf node_modules
 	@echo "🧹 Removed node_modules."
+
+db-sync: ## Sync SQL files to Supabase (requires DATABASE_URL or SUPABASE_DB_PASSWORD in .env.local)
+	@DB_URL=$$(grep '^DATABASE_URL=' .env.local | cut -d= -f2- | sed 's/"//g' | sed "s/'//g" 2>/dev/null); \
+	if [ -z "$$DB_URL" ]; then \
+		PASSWORD=$$(grep '^SUPABASE_DB_PASSWORD=' .env.local | cut -d= -f2 | sed 's/"//g' | sed "s/'//g" 2>/dev/null); \
+		if [ -n "$$PASSWORD" ]; then \
+			DB_URL="postgresql://postgres:$$PASSWORD@db.qlhclawprfqebawuqawk.supabase.co:5432/postgres"; \
+		fi; \
+	fi; \
+	if [ -z "$$DB_URL" ]; then \
+		echo "❌ Neither DATABASE_URL nor SUPABASE_DB_PASSWORD is set in .env.local"; \
+		echo "   Please add DATABASE_URL=postgresql://... or SUPABASE_DB_PASSWORD=your_password to .env.local"; \
+		exit 1; \
+	fi; \
+	if [ -z "$(FILE)" ]; then \
+		echo "🔄 Syncing quiniela_schema.sql..."; \
+		supabase db query --db-url "$$DB_URL" -f supabase/quiniela_schema.sql >/dev/null && echo "✅ quiniela_schema.sql synced." || exit 1; \
+		echo "🔄 Syncing setup_and_seed.sql..."; \
+		supabase db query --db-url "$$DB_URL" -f supabase/setup_and_seed.sql >/dev/null && echo "✅ setup_and_seed.sql synced." || exit 1; \
+	else \
+		echo "🔄 Syncing $(FILE)..."; \
+		supabase db query --db-url "$$DB_URL" -f "$(FILE)" >/dev/null && echo "✅ $(FILE) synced." || exit 1; \
+	fi
+
+test-coverage: ## Run tests and enforce an 80% coverage floor
+	@echo "\033[34m🧪 Running unit tests with strict coverage thresholds...\033[0m"
+	npm run test -- --coverage --coverage.thresholds.global.statements=80
+
+check-security: ## Verify dependencies against CVE databases (Trivy + npm audit)
+	@echo "\033[34m🛡️  Scanning project dependencies for vulnerabilities...\033[0m"
+	@if command -v $(TRIVY) >/dev/null 2>&1; then \
+		$(TRIVY) fs --severity HIGH,CRITICAL --exit-code 1 .; \
+	else \
+		echo "⚠️  Trivy is not installed, skipping Trivy container/fs scan."; \
+	fi
+	@echo "\033[34m📦 Verifying package-lock integrity via npm audit...\033[0m"
+	npm audit --audit-level=high
+
+check-secrets: ## Scan the repository to prevent accidental credential/token leaks
+	@echo "\033[34m🔑 Scanning codebase for hardcoded secrets or API keys...\033[0m"
+	@if command -v $(GITLEAKS) >/dev/null 2>&1; then \
+		$(GITLEAKS) detect --verbose --redact --config .gitleaks.toml; \
+	else \
+		echo "❌ Gitleaks is not installed. Please install gitleaks to run secret detection."; \
+		exit 1; \
+	fi

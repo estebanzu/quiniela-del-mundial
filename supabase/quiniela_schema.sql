@@ -371,8 +371,8 @@ $$;
 -- Function to handle automated classification and tournament bracket propagation
 create or replace function public.propagate_bracket()
 returns trigger
-language plpgsql
 security definer
+language plpgsql
 as $$
 declare
   is_group_stage_done boolean;
@@ -403,19 +403,23 @@ begin
       loser_name := new.away_team;
     end if;
 
-    -- Replace 'Ganador Partido [ID]' with winner_name
+    -- Replace 'Ganador Partido [ID]' or 'W[ID]' with winner_name
     update public.matches
-    set home_team = replace(home_team, 'Ganador Partido ' || new.id, winner_name),
-        away_team = replace(away_team, 'Ganador Partido ' || new.id, winner_name)
+    set home_team = replace(replace(home_team, 'Ganador Partido ' || new.id, winner_name), 'W' || new.id, winner_name),
+        away_team = replace(replace(away_team, 'Ganador Partido ' || new.id, winner_name), 'W' || new.id, winner_name)
     where home_team like '%Ganador Partido ' || new.id || '%'
-       or away_team like '%Ganador Partido ' || new.id || '%';
+       or away_team like '%Ganador Partido ' || new.id || '%'
+       or home_team like '%W' || new.id || '%'
+       or away_team like '%W' || new.id || '%';
 
-    -- Replace 'Perdedor Partido [ID]' with loser_name (for 3rd place match)
+    -- Replace 'Perdedor Partido [ID]' or 'L[ID]' with loser_name (for 3rd place match)
     update public.matches
-    set home_team = replace(home_team, 'Perdedor Partido ' || new.id, loser_name),
-        away_team = replace(away_team, 'Perdedor Partido ' || new.id, loser_name)
+    set home_team = replace(replace(home_team, 'Perdedor Partido ' || new.id, loser_name), 'L' || new.id, loser_name),
+        away_team = replace(replace(away_team, 'Perdedor Partido ' || new.id, loser_name), 'L' || new.id, loser_name)
     where home_team like '%Perdedor Partido ' || new.id || '%'
-       or away_team like '%Perdedor Partido ' || new.id || '%';
+       or away_team like '%Perdedor Partido ' || new.id || '%'
+       or home_team like '%L' || new.id || '%'
+       or away_team like '%L' || new.id || '%';
   end if;
 
   -- 2. Group Stage Standings Propagation (Group Stage Matches 1 to 72)
@@ -439,7 +443,7 @@ begin
 
       -- Insert all teams from group stage matches
       insert into group_standings (team, grp)
-      select distinct home_team, group
+      select distinct home_team, stage_group
       from public.matches
       where id <= 72;
 
@@ -469,26 +473,32 @@ begin
       -- Iterate over each group to rank teams and propagate 1st/2nd place qualifiers
       for g_name in select distinct grp from group_standings loop
         g_idx := 1;
-        for standing_rec in 
-          select team 
-          from group_standings 
-          where grp = g_name 
-          order by points desc, goal_diff desc, goals_for desc 
-        loop
-          if g_idx = 1 then
-            update public.matches
-            set home_team = replace(home_team, '1º ' || g_name, standing_rec.team),
-                away_team = replace(away_team, '1º ' || g_name, standing_rec.team)
-            where home_team like '%1º ' || g_name || '%' or away_team like '%1º ' || g_name || '%';
-          elsif g_idx = 2 then
-            update public.matches
-            set home_team = replace(home_team, '2º ' || g_name, standing_rec.team),
-                away_team = replace(away_team, '2º ' || g_name, standing_rec.team)
-            where home_team like '%2º ' || g_name || '%' or away_team like '%2º ' || g_name || '%';
-          end if;
+        declare
+          group_letter text := split_part(g_name, ' ', 2);
+        begin
+          for standing_rec in 
+            select team 
+            from group_standings 
+            where grp = g_name 
+            order by points desc, goal_diff desc, goals_for desc 
+          loop
+            if g_idx = 1 then
+              update public.matches
+              set home_team = replace(replace(home_team, '1º ' || g_name, standing_rec.team), '1' || group_letter, standing_rec.team),
+                  away_team = replace(replace(away_team, '1º ' || g_name, standing_rec.team), '1' || group_letter, standing_rec.team)
+              where home_team like '%1º ' || g_name || '%' or away_team like '%1º ' || g_name || '%'
+                 or home_team = '1' || group_letter or away_team = '1' || group_letter;
+            elsif g_idx = 2 then
+              update public.matches
+              set home_team = replace(replace(home_team, '2º ' || g_name, standing_rec.team), '2' || group_letter, standing_rec.team),
+                  away_team = replace(replace(away_team, '2º ' || g_name, standing_rec.team), '2' || group_letter, standing_rec.team)
+              where home_team like '%2º ' || g_name || '%' or away_team like '%2º ' || g_name || '%'
+                 or home_team = '2' || group_letter or away_team = '2' || group_letter;
+            end if;
 
-          g_idx := g_idx + 1;
-        end loop;
+            g_idx := g_idx + 1;
+          end loop;
+        end;
       end loop;
 
       -- Rank the 12 third-place teams to find the best 8 qualifiers
@@ -530,15 +540,25 @@ begin
           where id >= 73 and id <= 88
             and (
               (home_team like '3º Grupo%' and home_team like '%' || group_letter || '%') or
-              (away_team like '3º Grupo%' and away_team like '%' || group_letter || '%')
+              (away_team like '3º Grupo%' and away_team like '%' || group_letter || '%') or
+              (home_team like '3%' and home_team like '%' || group_letter || '%') or
+              (away_team like '3%' and away_team like '%' || group_letter || '%')
             )
           order by id asc
           limit 1;
 
           if matched_match_id is not null then
             update public.matches
-            set home_team = case when home_team like '3º Grupo%' and home_team like '%' || group_letter || '%' then third_rec.team else home_team end,
-                away_team = case when away_team like '3º Grupo%' and away_team like '%' || group_letter || '%' then third_rec.team else away_team end
+            set home_team = case 
+                  when home_team like '3º Grupo%' and home_team like '%' || group_letter || '%' then third_rec.team 
+                  when home_team like '3%' and home_team like '%' || group_letter || '%' then third_rec.team 
+                  else home_team 
+                end,
+                away_team = case 
+                  when away_team like '3º Grupo%' and away_team like '%' || group_letter || '%' then third_rec.team 
+                  when away_team like '3%' and away_team like '%' || group_letter || '%' then third_rec.team 
+                  else away_team 
+                end
             where id = matched_match_id;
           end if;
         end;

@@ -1,0 +1,11 @@
+# Gitleaks configuration - Economía Familiar
+# Supabase anon keys are public by design (protected by RLS)
+
+[allowlist]
+description = "Allow Supabase publishable anon keys and local dev config"
+paths = [
+  '''\.env$''',
+  '''\.env\.production$''',
+]
+regexTarget = "match"
+regexes = ['''sb_publishable_''']

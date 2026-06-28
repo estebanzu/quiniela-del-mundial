@@ -421,8 +421,8 @@ $$;
 
 CREATE OR REPLACE FUNCTION public.propagate_bracket()
 RETURNS trigger
-LANGUAGE plpgsql
 SECURITY DEFINER
+LANGUAGE plpgsql
 AS $$
 DECLARE
   is_group_stage_done boolean;
@@ -436,6 +436,8 @@ DECLARE
   third_rec record;
   matched_match_id bigint;
 BEGIN
+  -- 1. Knockout Winner/Loser Propagation (Match ID >= 73)
+  -- Triggered when a knockout match score is saved and status becomes 'finished'
   IF (new.status = 'finished' and old.status is distinct from 'finished' and new.id >= 73) or
      (new.status = 'finished' and (old.home_score is distinct from new.home_score or old.away_score is distinct from new.away_score) and new.id >= 73) then
      
@@ -446,29 +448,39 @@ BEGIN
       winner_name := new.away_team;
       loser_name := new.home_team;
     ELSE
+      -- Fallback for draws (should not happen in knockouts, but if it does, home advances)
       winner_name := new.home_team;
       loser_name := new.away_team;
     END IF;
 
+    -- Replace 'Ganador Partido [ID]' or 'W[ID]' with winner_name
     UPDATE public.matches
-    SET home_team = replace(home_team, 'Ganador Partido ' || new.id, winner_name),
-        away_team = replace(away_team, 'Ganador Partido ' || new.id, winner_name)
+    SET home_team = replace(replace(home_team, 'Ganador Partido ' || new.id, winner_name), 'W' || new.id, winner_name),
+        away_team = replace(replace(away_team, 'Ganador Partido ' || new.id, winner_name), 'W' || new.id, winner_name)
     where home_team like '%Ganador Partido ' || new.id || '%'
-       or away_team like '%Ganador Partido ' || new.id || '%';
+       or away_team like '%Ganador Partido ' || new.id || '%'
+       or home_team like '%W' || new.id || '%'
+       or away_team like '%W' || new.id || '%';
 
+    -- Replace 'Perdedor Partido [ID]' or 'L[ID]' with loser_name (for 3rd place match)
     UPDATE public.matches
-    SET home_team = replace(home_team, 'Perdedor Partido ' || new.id, loser_name),
-        away_team = replace(away_team, 'Perdedor Partido ' || new.id, loser_name)
+    SET home_team = replace(replace(home_team, 'Perdedor Partido ' || new.id, loser_name), 'L' || new.id, loser_name),
+        away_team = replace(replace(away_team, 'Perdedor Partido ' || new.id, loser_name), 'L' || new.id, loser_name)
     where home_team like '%Perdedor Partido ' || new.id || '%'
-       or away_team like '%Perdedor Partido ' || new.id || '%';
+       or away_team like '%Perdedor Partido ' || new.id || '%'
+       or home_team like '%L' || new.id || '%'
+       or away_team like '%L' || new.id || '%';
   END IF;
 
+  -- 2. Group Stage Standings Propagation (Group Stage Matches 1 to 72)
+  -- When any group stage match transitions to finished, check if ALL 72 group stage matches are finished.
   IF (new.id <= 72 and new.status = 'finished') THEN
     SELECT count(*) = 0 INTO is_group_stage_done
     FROM public.matches
     where id <= 72 and status != 'finished';
 
     IF is_group_stage_done THEN
+      -- Create temporary table for group standings computation
       CREATE TEMP TABLE IF NOT EXISTS group_standings (
         team text primary key,
         grp text,
@@ -479,11 +491,13 @@ BEGIN
       
       TRUNCATE TABLE group_standings;
 
+      -- Insert all teams from group stage matches
       INSERT INTO group_standings (team, grp)
       SELECT distinct home_team, stage_group
       FROM public.matches
       where id <= 72;
 
+      -- Calculate points and goals
       FOR match_rec in SELECT home_team, away_team, home_score, away_score FROM public.matches where id <= 72 and status = 'finished' LOOP
         UPDATE group_standings
         SET goals_for = goals_for + match_rec.home_score,
@@ -491,7 +505,7 @@ BEGIN
             points = points + CASE 
               WHEN match_rec.home_score > match_rec.away_score THEN 3
               WHEN match_rec.home_score = match_rec.away_score THEN 1
-              ELSE 0
+              else 0
             END
         where team = match_rec.home_team;
 
@@ -501,35 +515,43 @@ BEGIN
             points = points + CASE 
               WHEN match_rec.away_score > match_rec.home_score THEN 3
               WHEN match_rec.away_score = match_rec.home_score THEN 1
-              ELSE 0
+              else 0
             END
         where team = match_rec.away_team;
       END LOOP;
 
+      -- Iterate over each group to rank teams and propagate 1st/2nd place qualifiers
       FOR g_name in SELECT distinct grp FROM group_standings LOOP
         g_idx := 1;
-        FOR standing_rec in 
-          SELECT team 
-          FROM group_standings 
-          where grp = g_name 
-          ORDER BY points DESC, goal_diff DESC, goals_for DESC 
-        LOOP
-          IF g_idx = 1 THEN
-            UPDATE public.matches
-            SET home_team = replace(home_team, '1º ' || g_name, standing_rec.team),
-                away_team = replace(away_team, '1º ' || g_name, standing_rec.team)
-            where home_team like '%1º ' || g_name || '%' or away_team like '%1º ' || g_name || '%';
-          ELSIF g_idx = 2 THEN
-            UPDATE public.matches
-            SET home_team = replace(home_team, '2º ' || g_name, standing_rec.team),
-                away_team = replace(away_team, '2º ' || g_name, standing_rec.team)
-            where home_team like '%2º ' || g_name || '%' or away_team like '%2º ' || g_name || '%';
-          END IF;
+        DECLARE
+          group_letter text := split_part(g_name, ' ', 2);
+        BEGIN
+          FOR standing_rec in 
+            SELECT team 
+            FROM group_standings 
+            where grp = g_name 
+            ORDER BY points DESC, goal_diff DESC, goals_for DESC 
+          LOOP
+            IF g_idx = 1 THEN
+              UPDATE public.matches
+              SET home_team = replace(replace(home_team, '1º ' || g_name, standing_rec.team), '1' || group_letter, standing_rec.team),
+                  away_team = replace(replace(away_team, '1º ' || g_name, standing_rec.team), '1' || group_letter, standing_rec.team)
+              where home_team like '%1º ' || g_name || '%' or away_team like '%1º ' || g_name || '%'
+                 or home_team = '1' || group_letter or away_team = '1' || group_letter;
+            ELSIF g_idx = 2 THEN
+              UPDATE public.matches
+              SET home_team = replace(replace(home_team, '2º ' || g_name, standing_rec.team), '2' || group_letter, standing_rec.team),
+                  away_team = replace(replace(away_team, '2º ' || g_name, standing_rec.team), '2' || group_letter, standing_rec.team)
+              where home_team like '%2º ' || g_name || '%' or away_team like '%2º ' || g_name || '%'
+                 or home_team = '2' || group_letter or away_team = '2' || group_letter;
+            END IF;
 
-          g_idx := g_idx + 1;
-        END LOOP;
+            g_idx := g_idx + 1;
+          END LOOP;
+        END;
       END LOOP;
 
+      -- Rank the 12 third-place teams to find the best 8 qualifiers
       CREATE TEMP TABLE IF NOT EXISTS third_places (
         team text primary key,
         grp text,
@@ -552,6 +574,7 @@ BEGIN
         where rank = 3;
       END LOOP;
 
+      -- Assign the top 8 third-place teams to the 8 matches expecting them
       FOR third_rec in 
         SELECT team, grp 
         FROM third_places 
@@ -561,20 +584,31 @@ BEGIN
         DECLARE
           group_letter text := split_part(third_rec.grp, ' ', 2);
         BEGIN
+          -- Locate the first unassigned slot expecting this third place team group letter
           SELECT id INTO matched_match_id
           FROM public.matches
           where id >= 73 and id <= 88
             and (
               (home_team like '3º Grupo%' and home_team like '%' || group_letter || '%') or
-              (away_team like '3º Grupo%' and away_team like '%' || group_letter || '%')
+              (away_team like '3º Grupo%' and away_team like '%' || group_letter || '%') or
+              (home_team like '3%' and home_team like '%' || group_letter || '%') or
+              (away_team like '3%' and away_team like '%' || group_letter || '%')
             )
           ORDER BY id ASC
           LIMIT 1;
 
           IF matched_match_id IS NOT NULL THEN
             UPDATE public.matches
-            SET home_team = CASE WHEN home_team like '3º Grupo%' and home_team like '%' || group_letter || '%' THEN third_rec.team ELSE home_team END,
-                away_team = CASE WHEN away_team like '3º Grupo%' and away_team like '%' || group_letter || '%' THEN third_rec.team ELSE away_team END
+            SET home_team = CASE 
+                  WHEN home_team like '3º Grupo%' and home_team like '%' || group_letter || '%' THEN third_rec.team 
+                  WHEN home_team like '3%' and home_team like '%' || group_letter || '%' THEN third_rec.team 
+                  ELSE home_team 
+                END,
+                away_team = CASE 
+                  WHEN away_team like '3º Grupo%' and away_team like '%' || group_letter || '%' THEN third_rec.team 
+                  WHEN away_team like '3%' and away_team like '%' || group_letter || '%' THEN third_rec.team 
+                  ELSE away_team 
+                END
             where id = matched_match_id;
           END IF;
         END;
@@ -668,38 +702,38 @@ INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_
 INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (70, 'Panama', 'Croatia', 'Grupo L', 'Toronto', '2026-06-23T23:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
 INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (71, 'Panama', 'England', 'Grupo L', 'New York/New Jersey (East Rutherford)', '2026-06-27T21:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
 INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (72, 'Croatia', 'Ghana', 'Grupo L', 'Philadelphia', '2026-06-27T21:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
-INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (73, '2A', '2B', 'Round of 32', 'Los Angeles (Inglewood)', '2026-06-28T19:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
-INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (74, '1E', '3A/B/C/D/F', 'Round of 32', 'Boston (Foxborough)', '2026-06-29T20:30:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
-INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (75, '1F', '2C', 'Round of 32', 'Monterrey (Guadalupe)', '2026-06-30T01:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
-INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (76, '1C', '2F', 'Round of 32', 'Houston', '2026-06-29T17:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
-INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (77, '1I', '3C/D/F/G/H', 'Round of 32', 'New York/New Jersey (East Rutherford)', '2026-06-30T21:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
-INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (78, '2E', '2I', 'Round of 32', 'Dallas (Arlington)', '2026-06-30T17:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
-INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (79, '1A', '3C/E/F/H/I', 'Round of 32', 'Mexico City', '2026-07-01T01:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
-INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (80, '1L', '3E/H/I/J/K', 'Round of 32', 'Atlanta', '2026-07-01T16:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
-INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (81, '1D', '3B/E/F/I/J', 'Round of 32', 'San Francisco Bay Area (Santa Clara)', '2026-07-02T00:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
-INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (82, '1G', '3A/E/H/I/J', 'Round of 32', 'Seattle', '2026-07-01T20:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
-INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (83, '2K', '2L', 'Round of 32', 'Toronto', '2026-07-02T23:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
-INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (84, '1H', '2J', 'Round of 32', 'Los Angeles (Inglewood)', '2026-07-02T19:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
-INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (85, '1B', '3E/F/G/I/J', 'Round of 32', 'Vancouver', '2026-07-03T03:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
-INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (86, '1J', '2H', 'Round of 32', 'Miami (Miami Gardens)', '2026-07-03T22:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
-INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (87, '1K', '3D/E/I/J/L', 'Round of 32', 'Kansas City', '2026-07-04T01:30:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
-INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (88, '2D', '2G', 'Round of 32', 'Dallas (Arlington)', '2026-07-03T18:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
-INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (89, 'W74', 'W77', 'Round of 16', 'Philadelphia', '2026-07-04T21:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
-INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (90, 'W73', 'W75', 'Round of 16', 'Houston', '2026-07-04T17:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
-INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (91, 'W76', 'W78', 'Round of 16', 'New York/New Jersey (East Rutherford)', '2026-07-05T20:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
-INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (92, 'W79', 'W80', 'Round of 16', 'Mexico City', '2026-07-06T00:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
-INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (93, 'W83', 'W84', 'Round of 16', 'Dallas (Arlington)', '2026-07-06T19:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
-INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (94, 'W81', 'W82', 'Round of 16', 'Seattle', '2026-07-07T00:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
-INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (95, 'W86', 'W88', 'Round of 16', 'Atlanta', '2026-07-07T16:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
-INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (96, 'W85', 'W87', 'Round of 16', 'Vancouver', '2026-07-07T20:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
-INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (97, 'W89', 'W90', 'Quarter-final', 'Boston (Foxborough)', '2026-07-09T20:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
-INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (98, 'W93', 'W94', 'Quarter-final', 'Los Angeles (Inglewood)', '2026-07-10T19:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
-INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (99, 'W91', 'W92', 'Quarter-final', 'Miami (Miami Gardens)', '2026-07-11T21:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
-INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (100, 'W95', 'W96', 'Quarter-final', 'Kansas City', '2026-07-12T01:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
-INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (101, 'W97', 'W98', 'Semi-final', 'Dallas (Arlington)', '2026-07-14T19:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
-INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (102, 'W99', 'W100', 'Semi-final', 'Atlanta', '2026-07-15T19:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
-INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (103, 'L101', 'L102', 'Match for third place', 'Miami (Miami Gardens)', '2026-07-18T21:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
-INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (104, 'W101', 'W102', 'Final', 'New York/New Jersey (East Rutherford)', '2026-07-19T19:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
+INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (73, '2º Grupo A', '2º Grupo B', 'Round of 32', 'Los Angeles (Inglewood)', '2026-06-28T19:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
+INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (74, '1º Grupo E', '3º Grupo A/B/C/D/F', 'Round of 32', 'Boston (Foxborough)', '2026-06-29T20:30:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
+INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (75, '1º Grupo F', '2º Grupo C', 'Round of 32', 'Monterrey (Guadalupe)', '2026-06-30T01:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
+INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (76, '1º Grupo C', '2º Grupo F', 'Round of 32', 'Houston', '2026-06-29T17:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
+INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (77, '1º Grupo I', '3º Grupo C/D/F/G/H', 'Round of 32', 'New York/New Jersey (East Rutherford)', '2026-06-30T21:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
+INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (78, '2º Grupo E', '2º Grupo I', 'Round of 32', 'Dallas (Arlington)', '2026-06-30T17:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
+INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (79, '1º Grupo A', '3º Grupo C/E/F/H/I', 'Round of 32', 'Mexico City', '2026-07-01T01:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
+INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (80, '1º Grupo L', '3º Grupo E/H/I/J/K', 'Round of 32', 'Atlanta', '2026-07-01T16:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
+INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (81, '1º Grupo D', '3º Grupo B/E/F/I/J', 'Round of 32', 'San Francisco Bay Area (Santa Clara)', '2026-07-02T00:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
+INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (82, '1º Grupo G', '3º Grupo A/E/H/I/J', 'Round of 32', 'Seattle', '2026-07-01T20:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
+INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (83, '2º Grupo K', '2º Grupo L', 'Round of 32', 'Toronto', '2026-07-02T23:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
+INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (84, '1º Grupo H', '2º Grupo J', 'Round of 32', 'Los Angeles (Inglewood)', '2026-07-02T19:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
+INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (85, '1º Grupo B', '3º Grupo E/F/G/I/J', 'Round of 32', 'Vancouver', '2026-07-03T03:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
+INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (86, '1º Grupo J', '2º Grupo H', 'Round of 32', 'Miami (Miami Gardens)', '2026-07-03T22:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
+INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (87, '1º Grupo K', '3º Grupo D/E/I/J/L', 'Round of 32', 'Kansas City', '2026-07-04T01:30:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
+INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (88, '2º Grupo D', '2º Grupo G', 'Round of 32', 'Dallas (Arlington)', '2026-07-03T18:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
+INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (89, 'Ganador Partido 74', 'Ganador Partido 77', 'Round of 16', 'Philadelphia', '2026-07-04T21:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
+INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (90, 'Ganador Partido 73', 'Ganador Partido 75', 'Round of 16', 'Houston', '2026-07-04T17:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
+INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (91, 'Ganador Partido 76', 'Ganador Partido 78', 'Round of 16', 'New York/New Jersey (East Rutherford)', '2026-07-05T20:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
+INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (92, 'Ganador Partido 79', 'Ganador Partido 80', 'Round of 16', 'Mexico City', '2026-07-06T00:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
+INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (93, 'Ganador Partido 83', 'Ganador Partido 84', 'Round of 16', 'Dallas (Arlington)', '2026-07-06T19:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
+INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (94, 'Ganador Partido 81', 'Ganador Partido 82', 'Round of 16', 'Seattle', '2026-07-07T00:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
+INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (95, 'Ganador Partido 86', 'Ganador Partido 88', 'Round of 16', 'Atlanta', '2026-07-07T16:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
+INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (96, 'Ganador Partido 85', 'Ganador Partido 87', 'Round of 16', 'Vancouver', '2026-07-07T20:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
+INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (97, 'Ganador Partido 89', 'Ganador Partido 90', 'Quarter-final', 'Boston (Foxborough)', '2026-07-09T20:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
+INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (98, 'Ganador Partido 93', 'Ganador Partido 94', 'Quarter-final', 'Los Angeles (Inglewood)', '2026-07-10T19:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
+INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (99, 'Ganador Partido 91', 'Ganador Partido 92', 'Quarter-final', 'Miami (Miami Gardens)', '2026-07-11T21:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
+INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (100, 'Ganador Partido 95', 'Ganador Partido 96', 'Quarter-final', 'Kansas City', '2026-07-12T01:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
+INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (101, 'Ganador Partido 97', 'Ganador Partido 98', 'Semi-final', 'Dallas (Arlington)', '2026-07-14T19:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
+INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (102, 'Ganador Partido 99', 'Ganador Partido 100', 'Semi-final', 'Atlanta', '2026-07-15T19:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
+INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (103, 'Perdedor Partido 101', 'Perdedor Partido 102', 'Match for third place', 'Miami (Miami Gardens)', '2026-07-18T21:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
+INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (104, 'Ganador Partido 101', 'Ganador Partido 102', 'Final', 'New York/New Jersey (East Rutherford)', '2026-07-19T19:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
 
 -- Reset matches identity sequence to avoid duplicate key errors on future inserts
 SELECT setval(pg_get_serial_sequence('public.matches', 'id'), COALESCE(MAX(id), 1)) FROM public.matches;
