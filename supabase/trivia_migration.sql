@@ -250,22 +250,70 @@ returns table(username text, total_points bigint, predictions_count bigint)
 language plpgsql
 security definer
 as $$
+declare
+  curr_phase int;
 begin
+  -- Determine current active phase based on first pending match
+  select 
+    case 
+      when min(id) is null then 6
+      when min(id) <= 72 then 1
+      when min(id) <= 88 then 2
+      when min(id) <= 96 then 3
+      when min(id) <= 100 then 4
+      when min(id) <= 102 then 5
+      else 6
+    end into curr_phase
+  from public.matches
+  where status != 'finished';
+
+  if curr_phase is null then
+    curr_phase := 6;
+  end if;
+
   return query
   select
     split_part(u.email, '@', 1)::text as username,
-    (coalesce(sum(p.points), 0) + coalesce(t.trivia_pts, 0))::bigint as total_points,
-    count(p.id)::bigint as predictions_count
+    (
+      coalesce(sum(case 
+        when curr_phase = 1 and p.match_id >= 1 and p.match_id <= 72 then p.points
+        when curr_phase = 2 and p.match_id >= 73 and p.match_id <= 88 then p.points
+        when curr_phase = 3 and p.match_id >= 89 and p.match_id <= 96 then p.points
+        when curr_phase = 4 and p.match_id >= 97 and p.match_id <= 100 then p.points
+        when curr_phase = 5 and p.match_id >= 101 and p.match_id <= 102 then p.points
+        when curr_phase = 6 and p.match_id >= 103 and p.match_id <= 104 then p.points
+        else 0
+      end), 0) + coalesce(t.trivia_pts, 0)
+    )::bigint as total_points,
+    sum(case 
+      when curr_phase = 1 and p.match_id >= 1 and p.match_id <= 72 then 1
+      when curr_phase = 2 and p.match_id >= 73 and p.match_id <= 88 then 1
+      when curr_phase = 3 and p.match_id >= 89 and p.match_id <= 96 then 1
+      when curr_phase = 4 and p.match_id >= 97 and p.match_id <= 100 then 1
+      when curr_phase = 5 and p.match_id >= 101 and p.match_id <= 102 then 1
+      when curr_phase = 6 and p.match_id >= 103 and p.match_id <= 104 then 1
+      else 0
+    end)::bigint as predictions_count
   from auth.users u
   left join public.predictions p on u.id = p.user_id
   left join (
-    select user_id, sum(points)::bigint as trivia_pts
-    from public.trivia_answers
-    group by user_id
+    select 
+      ta.user_id,
+      sum(ta.points)::bigint as trivia_pts
+    from public.trivia_answers ta
+    inner join public.trivia_questions tq on ta.question_id = tq.id
+    where 
+      (curr_phase = 1 and tq.trivia_date <= '2026-06-27') or
+      (curr_phase = 2 and tq.trivia_date >= '2026-06-28' and tq.trivia_date <= '2026-07-03') or
+      (curr_phase = 3 and tq.trivia_date >= '2026-07-04' and tq.trivia_date <= '2026-07-07') or
+      (curr_phase = 4 and tq.trivia_date >= '2026-07-08' and tq.trivia_date <= '2026-07-12') or
+      (curr_phase = 5 and tq.trivia_date >= '2026-07-13' and tq.trivia_date <= '2026-07-15') or
+      (curr_phase = 6 and tq.trivia_date >= '2026-07-16')
+    group by ta.user_id
   ) t on u.id = t.user_id
   where u.email like '%@quiniela.local' and u.email != 'admin@quiniela.local'
   group by u.email, t.trivia_pts
-  order by total_points desc, predictions_count desc;
+  order by total_points desc, predictions_count desc, username asc;
 end;
 $$;
 

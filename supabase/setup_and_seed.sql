@@ -257,17 +257,70 @@ RETURNS table(username text, total_points bigint, predictions_count bigint)
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
+DECLARE
+  curr_phase int;
 BEGIN
+  -- Determine current active phase based on first pending match
+  SELECT 
+    CASE 
+      WHEN min(id) IS NULL THEN 6
+      WHEN min(id) <= 72 THEN 1
+      WHEN min(id) <= 88 THEN 2
+      WHEN min(id) <= 96 THEN 3
+      WHEN min(id) <= 100 THEN 4
+      WHEN min(id) <= 102 THEN 5
+      ELSE 6
+    END INTO curr_phase
+  FROM public.matches
+  WHERE status != 'finished';
+
+  IF curr_phase IS NULL THEN
+    curr_phase := 6;
+  END IF;
+
   RETURN QUERY
   SELECT 
     split_part(u.email, '@', 1)::text as username,
-    coalesce(sum(p.points), 0)::bigint as total_points,
-    count(p.id)::bigint as predictions_count
-  from auth.users u
-  left join public.predictions p on u.id = p.user_id
-  where u.email like '%@quiniela.local' and u.email != 'admin@quiniela.local'
-  group by u.email
-  order by total_points desc, predictions_count desc;
+    (
+      coalesce(sum(CASE 
+        WHEN curr_phase = 1 AND p.match_id >= 1 AND p.match_id <= 72 THEN p.points
+        WHEN curr_phase = 2 AND p.match_id >= 73 AND p.match_id <= 88 THEN p.points
+        WHEN curr_phase = 3 AND p.match_id >= 89 AND p.match_id <= 96 THEN p.points
+        WHEN curr_phase = 4 AND p.match_id >= 97 AND p.match_id <= 100 THEN p.points
+        WHEN curr_phase = 5 AND p.match_id >= 101 AND p.match_id <= 102 THEN p.points
+        WHEN curr_phase = 6 AND p.match_id >= 103 AND p.match_id <= 104 THEN p.points
+        ELSE 0
+      END), 0) + coalesce(t.trivia_pts, 0)
+    )::bigint as total_points,
+    sum(CASE 
+      WHEN curr_phase = 1 AND p.match_id >= 1 AND p.match_id <= 72 THEN 1
+      WHEN curr_phase = 2 AND p.match_id >= 73 AND p.match_id <= 88 THEN 1
+      WHEN curr_phase = 3 AND p.match_id >= 89 AND p.match_id <= 96 THEN 1
+      WHEN curr_phase = 4 AND p.match_id >= 97 AND p.match_id <= 100 THEN 1
+      WHEN curr_phase = 5 AND p.match_id >= 101 AND p.match_id <= 102 THEN 1
+      WHEN curr_phase = 6 AND p.match_id >= 103 AND p.match_id <= 104 THEN 1
+      ELSE 0
+    END)::bigint as predictions_count
+  FROM auth.users u
+  LEFT JOIN public.predictions p ON u.id = p.user_id
+  LEFT JOIN (
+    SELECT 
+      ta.user_id,
+      sum(ta.points)::bigint as trivia_pts
+    FROM public.trivia_answers ta
+    INNER JOIN public.trivia_questions tq ON ta.question_id = tq.id
+    WHERE 
+      (curr_phase = 1 AND tq.trivia_date <= '2026-06-27') OR
+      (curr_phase = 2 AND tq.trivia_date >= '2026-06-28' AND tq.trivia_date <= '2026-07-03') OR
+      (curr_phase = 3 AND tq.trivia_date >= '2026-07-04' AND tq.trivia_date <= '2026-07-07') OR
+      (curr_phase = 4 AND tq.trivia_date >= '2026-07-08' AND tq.trivia_date <= '2026-07-12') OR
+      (curr_phase = 5 AND tq.trivia_date >= '2026-07-13' AND tq.trivia_date <= '2026-07-15') OR
+      (curr_phase = 6 AND tq.trivia_date >= '2026-07-16')
+    GROUP BY ta.user_id
+  ) t ON u.id = t.user_id
+  WHERE u.email like '%@quiniela.local' and u.email != 'admin@quiniela.local'
+  GROUP BY u.email, t.trivia_pts
+  ORDER BY total_points desc, predictions_count desc, username asc;
 END;
 $$;
 
