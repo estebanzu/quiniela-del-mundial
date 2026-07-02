@@ -613,8 +613,13 @@ export function MatchCard({
             {isFinished && (
               <span className="font-bold text-slate-400">
                 Resultado Oficial:{' '}
-                <span className="bg-slate-950 text-primary px-2 py-0.5 rounded font-extrabold font-mono ml-1">
-                  {match.home_score} - {match.away_score}
+                <span className="bg-slate-950 text-primary px-2 py-0.5 rounded font-extrabold font-mono ml-1 inline-flex items-center gap-1.5">
+                  <span>{match.home_score} - {match.away_score}</span>
+                  {match.home_penalty !== null && match.away_penalty !== null && (
+                    <span className="text-[10px] text-slate-400 font-normal">
+                      ({match.home_penalty} - {match.away_penalty} pen.)
+                    </span>
+                  )}
                 </span>
               </span>
             )}

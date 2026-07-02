@@ -7,6 +7,8 @@ export type Match = {
   venue?: string
   home_score: number | null
   away_score: number | null
+  home_penalty?: number | null
+  away_penalty?: number | null
   status: 'pending' | 'live' | 'finished'
   score_manually_set?: boolean
 }

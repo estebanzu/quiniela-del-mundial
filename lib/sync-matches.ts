@@ -7,15 +7,15 @@ export type SyncResult = {
 }
 
 export async function syncMatchesFromApi(): Promise<SyncResult> {
-  const [liveRes, todayRes, resultsRes] = await Promise.all([
+  const [liveRes, todayRes, allRes] = await Promise.all([
     fetch('https://wcup2026.org/api/data.php?action=live', { next: { revalidate: 0 } }),
     fetch('https://wcup2026.org/api/data.php?action=today', { next: { revalidate: 0 } }),
-    fetch('https://wcup2026.org/api/data.php?action=results', { next: { revalidate: 0 } })
+    fetch('https://wcup2026.org/api/data.php?action=all', { next: { revalidate: 0 } })
   ])
 
   const liveData = liveRes.ok ? await liveRes.json() : { matches: [] }
   const todayData = todayRes.ok ? await todayRes.json() : { matches: [] }
-  const resultsData = resultsRes.ok ? await resultsRes.json() : { matches: [] }
+  const allData = allRes.ok ? await allRes.json() : { matches: [] }
 
   const apiMatchesMap = new Map<number, any>()
   const addMatches = (matches: any[]) => {
@@ -27,7 +27,7 @@ export async function syncMatchesFromApi(): Promise<SyncResult> {
     }
   }
 
-  addMatches(resultsData.matches)
+  addMatches(allData.matches)
   addMatches(todayData.matches)
   addMatches(liveData.matches)
 
@@ -43,11 +43,23 @@ export async function syncMatchesFromApi(): Promise<SyncResult> {
 
   const { data: dbMatches, error: dbError } = await supabase
     .from('matches')
-    .select('id, status, home_score, away_score, score_manually_set')
+    .select('id, status, home_score, away_score, score_manually_set, home_team, away_team, home_penalty, away_penalty')
 
   if (dbError) {
     console.error('Error fetching database matches:', dbError)
     throw dbError
+  }
+
+  const normalizeApiTeamName = (name: string): string => {
+    if (!name) return name
+    const mapping: Record<string, string> = {
+      'South Korea': 'Korea Republic',
+      'Czech Republic': 'Czechia',
+      'DR Congo': 'Congo DR',
+      'Bosnia & Herzegovina': 'Bosnia and Herzegovina',
+      'Ivory Coast': "Côte'Ivoire",
+    }
+    return mapping[name] || name
   }
 
   const updates: any[] = []
@@ -80,16 +92,31 @@ export async function syncMatchesFromApi(): Promise<SyncResult> {
       continue
     }
 
+    // Parse penalty shootout results if available
+    const ps = apiMatch.ps || apiMatch.penalties
+    const hasPs = Array.isArray(ps) && ps.length === 2
+    const homePenaltyMapped = hasPs ? ps[0] : null
+    const awayPenaltyMapped = hasPs ? ps[1] : null
+
+    const homeTeamMapped = apiMatch.team1 ? normalizeApiTeamName(apiMatch.team1) : dbMatch.home_team
+    const awayTeamMapped = apiMatch.team2 ? normalizeApiTeamName(apiMatch.team2) : dbMatch.away_team
+
+    const teamDiff = dbMatch.home_team !== homeTeamMapped || dbMatch.away_team !== awayTeamMapped
     const statusDiff = dbMatch.status !== apiStatusMapped
     const homeDiff = dbMatch.home_score !== homeScoreMapped
     const awayDiff = dbMatch.away_score !== awayScoreMapped
+    const penaltyDiff = dbMatch.home_penalty !== homePenaltyMapped || dbMatch.away_penalty !== awayPenaltyMapped
 
-    if (statusDiff || homeDiff || awayDiff) {
+    if (teamDiff || statusDiff || homeDiff || awayDiff || penaltyDiff) {
       updates.push({
         id: dbMatch.id,
         status: apiStatusMapped,
         home_score: homeScoreMapped,
         away_score: awayScoreMapped,
+        home_team: homeTeamMapped,
+        away_team: awayTeamMapped,
+        home_penalty: homePenaltyMapped,
+        away_penalty: awayPenaltyMapped,
       })
     }
   }
@@ -102,6 +129,10 @@ export async function syncMatchesFromApi(): Promise<SyncResult> {
         status: update.status,
         home_score: update.home_score,
         away_score: update.away_score,
+        home_team: update.home_team,
+        away_team: update.away_team,
+        home_penalty: update.home_penalty,
+        away_penalty: update.away_penalty,
       })
       .eq('id', update.id)
 

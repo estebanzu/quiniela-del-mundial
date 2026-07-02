@@ -121,7 +121,7 @@ test-coverage: ## Run tests and enforce an 80% coverage floor
 check-security: ## Verify dependencies against CVE databases (Trivy + npm audit)
 	@echo "\033[34m🛡️  Scanning project dependencies for vulnerabilities...\033[0m"
 	@if command -v $(TRIVY) >/dev/null 2>&1; then \
-		$(TRIVY) fs --severity HIGH,CRITICAL --exit-code 1 .; \
+		$(TRIVY) fs --skip-version-check --severity HIGH,CRITICAL --exit-code 1 .; \
 	else \
 		echo "⚠️  Trivy is not installed, skipping Trivy container/fs scan."; \
 	fi

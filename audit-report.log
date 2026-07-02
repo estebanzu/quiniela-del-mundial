@@ -1,0 +1,104 @@
+[34m🔑 Scanning codebase for hardcoded secrets or API keys...[0m
+npm run lint
+
+> quiniela-mundial@0.1.0 lint
+> eslint
+
+[34m🔷 Running TypeScript compilation check...[0m
+npx tsc --noEmit
+[34m🛡️  Scanning project dependencies for vulnerabilities...[0m
+
+Report Summary
+
+┌──────────────────────────────────────────────────────────────────────────────────┬──────┬─────────────────┬─────────┐
+│                                      Target                                      │ Type │ Vulnerabilities │ Secrets │
+├──────────────────────────────────────────────────────────────────────────────────┼──────┼─────────────────┼─────────┤
+│ package-lock.json                                                                │ npm  │        0        │    -    │
+├──────────────────────────────────────────────────────────────────────────────────┼──────┼─────────────────┼─────────┤
+│ .env.local                                                                       │ text │        -        │    0    │
+├──────────────────────────────────────────────────────────────────────────────────┼──────┼─────────────────┼─────────┤
+│ .next/server/chunks/[root-of-the-server]__0361lub._.js                           │ text │        -        │    0    │
+├──────────────────────────────────────────────────────────────────────────────────┼──────┼─────────────────┼─────────┤
+│ .next/server/chunks/[root-of-the-server]__08ht8iu._.js                           │ text │        -        │    0    │
+├──────────────────────────────────────────────────────────────────────────────────┼──────┼─────────────────┼─────────┤
+│ .next/server/chunks/[root-of-the-server]__0w8lmyg._.js                           │ text │        -        │    0    │
+├──────────────────────────────────────────────────────────────────────────────────┼──────┼─────────────────┼─────────┤
+│ .next/server/chunks/node_modules_next_dist_esm_build_templates_app-route_1kan_b- │ text │        -        │    0    │
+│ n.js                                                                             │      │                 │         │
+├──────────────────────────────────────────────────────────────────────────────────┼──────┼─────────────────┼─────────┤
+│ .next/server/chunks/ssr/_01n5m3d._.js                                            │ text │        -        │    0    │
+├──────────────────────────────────────────────────────────────────────────────────┼──────┼─────────────────┼─────────┤
+│ .next/static/chunks/2m4e4vyqwotqa.js                                             │ text │        -        │    0    │
+└──────────────────────────────────────────────────────────────────────────────────┴──────┴─────────────────┴─────────┘
+Legend:
+- '-': Not scanned
+- '0': Clean (no security findings detected)
+
+[34m📦 Verifying package-lock integrity via npm audit...[0m
+npm audit --audit-level=high
+found 0 vulnerabilities
+[34m🧪 Running unit tests with strict coverage thresholds...[0m
+npm run test -- --coverage --coverage.thresholds.global.statements=80
+
+> quiniela-mundial@0.1.0 test
+> vitest run --coverage --coverage.thresholds.global.statements=80
+
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.9 [39m[90m/Users/ezunigam/Documents/quiniela/quiniela-mundial[39m
+      [2mCoverage enabled with [22m[33mv8[39m
+
+ [32m✓[39m lib/translations.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m2 passed[39m[22m[90m (2)[39m
+[2m   Start at [22m 17:35:29
+[2m   Duration [22m 528ms[2m (transform 23ms, setup 0ms, import 35ms, tests 3ms, environment 0ms)[22m
+
+[34m % [39m[2mCoverage report from [22m[33mv8[39m
+-----------------|---------|----------|---------|---------|-------------------
+File             | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+-----------------|---------|----------|---------|---------|-------------------
+All files        |     100 |      100 |     100 |     100 |                   
+ translations.ts |     100 |      100 |     100 |     100 |                   
+-----------------|---------|----------|---------|---------|-------------------
+npm run build
+
+> quiniela-mundial@0.1.0 build
+> next build
+
+▲ Next.js 16.2.9 (Turbopack)
+- Environments: .env.local
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 2.7s
+  Running TypeScript ...
+  Finished TypeScript in 4.0s ...
+  Collecting page data using 9 workers ...
+  Generating static pages using 9 workers (0/15) ...
+  Generating static pages using 9 workers (3/15) 
+  Generating static pages using 9 workers (7/15) 
+  Generating static pages using 9 workers (11/15) 
+✓ Generating static pages using 9 workers (15/15) in 201ms
+  Finalizing page optimization ...
+
+Route (app)                    Revalidate  Expire
+┌ ○ /
+├ ○ /_not-found
+├ ƒ /api/cron-sync-matches
+├ ƒ /api/football-data
+├ ƒ /api/init-admin
+├ ƒ /api/news
+├ ƒ /api/predictions-reminder
+├ ƒ /api/push/subscribe
+├ ƒ /api/send-daily-results
+├ ƒ /api/sync-matches
+├ ƒ /api/wcup-results
+├ ○ /login
+└ ○ /rss                              10m      1y
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+[32m
+✅ All static analysis, security gates, tests, and builds passed successfully![0m

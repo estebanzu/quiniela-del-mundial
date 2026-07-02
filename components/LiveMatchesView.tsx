@@ -16,6 +16,7 @@ type ApiMatch = {
   flag2: string
   status: 'live' | 'finished' | 'scheduled' | string
   score: [number, number] | null
+  ps?: [number, number] | null
   live_minute: number | null
   date: string
   time: string
@@ -356,14 +357,21 @@ export default function LiveMatchesView({
                   {/* Score or time separator */}
                   <div className="shrink-0 flex flex-col items-center justify-center px-4">
                     {isLive || isFinished ? (
-                      <div className="bg-slate-950 text-slate-100 font-mono font-black text-xl px-4 py-2 rounded-xl border border-slate-850 select-none flex items-center gap-2 shadow-inner">
-                        <span className={isLive ? 'text-primary' : ''}>
-                          {match.score ? match.score[0] : 0}
-                        </span>
-                        <span className="text-slate-650 font-bold text-sm">:</span>
-                        <span className={isLive ? 'text-primary' : ''}>
-                          {match.score ? match.score[1] : 0}
-                        </span>
+                      <div className="flex flex-col items-center gap-1.5">
+                        <div className="bg-slate-950 text-slate-100 font-mono font-black text-xl px-4 py-2 rounded-xl border border-slate-850 select-none flex items-center gap-2 shadow-inner">
+                          <span className={isLive ? 'text-primary' : ''}>
+                            {match.score ? match.score[0] : 0}
+                          </span>
+                          <span className="text-slate-650 font-bold text-sm">:</span>
+                          <span className={isLive ? 'text-primary' : ''}>
+                            {match.score ? match.score[1] : 0}
+                          </span>
+                        </div>
+                        {match.ps && Array.isArray(match.ps) && match.ps.length === 2 && (
+                          <span className="text-[10px] text-slate-400 font-black bg-slate-950 px-2 py-0.5 rounded border border-slate-900 shadow-sm animate-fade-in">
+                            ({match.ps[0]}-{match.ps[1]} pen.)
+                          </span>
+                        )}
                       </div>
                     ) : (
                       <div className="flex flex-col items-center bg-slate-950/50 border border-slate-900 px-3 py-1.5 rounded-xl text-center select-none font-bold text-[10px] uppercase tracking-wider text-slate-400">
