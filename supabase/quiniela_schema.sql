@@ -53,7 +53,7 @@ create policy matches_delete_auth on public.matches
   using (auth.jwt() ->> 'email' = 'admin@quiniela.local');
 
 -- RLS Policies for Predictions
-drop policy if exists predictions_select_own on public.predictions;
+drop policy if exists predictions_select_public on public.predictions;
 create policy predictions_select_public on public.predictions
   for select
   using (true);
