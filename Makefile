@@ -112,6 +112,30 @@ db-sync: ## Sync SQL files to Supabase (requires DATABASE_URL or SUPABASE_DB_PAS
 		node scripts/db-sync.js "$$DB_URL" "$(FILE)" || exit 1; \
 	fi
 
+db-dump: ## Dump remote database schema and data to a local SQL backup (requires pg_dump or supabase CLI)
+	@DB_URL=$$(grep '^DATABASE_URL=' .env.local | cut -d= -f2- | sed 's/"//g' | sed "s/'//g" 2>/dev/null); \
+	if [ -z "$$DB_URL" ]; then \
+		PASSWORD=$$(grep '^SUPABASE_DB_PASSWORD=' .env.local | cut -d= -f2 | sed 's/"//g' | sed "s/'//g" 2>/dev/null); \
+		if [ -n "$$PASSWORD" ]; then \
+			DB_URL="postgresql://postgres:$$PASSWORD@db.qlhclawprfqebawuqawk.supabase.co:5432/postgres"; \
+		fi; \
+	fi; \
+	if [ -z "$$DB_URL" ]; then \
+		echo "❌ Neither DATABASE_URL nor SUPABASE_DB_PASSWORD is set in .env.local"; \
+		exit 1; \
+	fi; \
+	TIMESTAMP=$$(date +%Y%m%d_%H%M%S); \
+	BACKUP_FILE="supabase/backups/db_backup_$$TIMESTAMP.sql"; \
+	mkdir -p supabase/backups; \
+	if command -v pg_dump >/dev/null 2>&1; then \
+		echo "🔄 Dumping database schema & data via pg_dump to $$BACKUP_FILE..."; \
+		pg_dump "$$DB_URL" --clean --if-exists > "$$BACKUP_FILE" && echo "✅ Database dumped successfully." || exit 1; \
+	else \
+		echo "⚠️  pg_dump not found. Trying supabase db dump (schema only)..."; \
+		supabase db dump --db-url "$$DB_URL" > "$$BACKUP_FILE" && echo "✅ Database schema dumped successfully to $$BACKUP_FILE." || exit 1; \
+	fi
+
+
 test-coverage: ## Run tests and enforce an 80% coverage floor
 	@echo "\033[34m🧪 Running unit tests with strict coverage thresholds...\033[0m"
 	npm run test -- --coverage --coverage.thresholds.global.statements=80
