@@ -755,7 +755,6 @@ FOR EACH ROW
 EXECUTE PROCEDURE public.propagate_bracket();
 
 -- 6. Insert matches data
-TRUNCATE TABLE public.matches CASCADE;
 
 INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (1, 'Mexico', 'South Africa', 'Grupo A', 'Mexico City', '2026-06-11T19:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
 INSERT INTO public.matches (id, home_team, away_team, stage_group, venue, match_date, status) VALUES (2, 'Korea Republic', 'Czechia', 'Grupo A', 'Guadalajara (Zapopan)', '2026-06-12T02:00:00Z', 'pending') ON CONFLICT (id) DO UPDATE SET home_team = EXCLUDED.home_team, away_team = EXCLUDED.away_team, stage_group = EXCLUDED.stage_group, venue = EXCLUDED.venue, match_date = EXCLUDED.match_date;
