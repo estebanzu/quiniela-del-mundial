@@ -109,6 +109,8 @@ db-sync: ## Sync SQL files to Supabase (requires DATABASE_URL or SUPABASE_DB_PAS
 		supabase db query --db-url "$$DB_URL" -f supabase/quiniela_schema.sql >/dev/null && echo "✅ quiniela_schema.sql synced." || exit 1; \
 		echo "🔄 Syncing setup_and_seed.sql..."; \
 		supabase db query --db-url "$$DB_URL" -f supabase/setup_and_seed.sql >/dev/null && echo "✅ setup_and_seed.sql synced." || exit 1; \
+		echo "🔄 Syncing add_penalties_support.sql..."; \
+		supabase db query --db-url "$$DB_URL" -f supabase/add_penalties_support.sql >/dev/null && echo "✅ add_penalties_support.sql synced." || exit 1; \
 	else \
 		echo "🔄 Syncing $(FILE)..."; \
 		supabase db query --db-url "$$DB_URL" -f "$(FILE)" >/dev/null && echo "✅ $(FILE) synced." || exit 1; \
