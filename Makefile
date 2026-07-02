@@ -105,15 +105,11 @@ db-sync: ## Sync SQL files to Supabase (requires DATABASE_URL or SUPABASE_DB_PAS
 		exit 1; \
 	fi; \
 	if [ -z "$(FILE)" ]; then \
-		echo "🔄 Syncing quiniela_schema.sql..."; \
-		supabase db query --db-url "$$DB_URL" -f supabase/quiniela_schema.sql >/dev/null && echo "✅ quiniela_schema.sql synced." || exit 1; \
-		echo "🔄 Syncing setup_and_seed.sql..."; \
-		supabase db query --db-url "$$DB_URL" -f supabase/setup_and_seed.sql >/dev/null && echo "✅ setup_and_seed.sql synced." || exit 1; \
-		echo "🔄 Syncing add_penalties_support.sql..."; \
-		supabase db query --db-url "$$DB_URL" -f supabase/add_penalties_support.sql >/dev/null && echo "✅ add_penalties_support.sql synced." || exit 1; \
+		node scripts/db-sync.js "$$DB_URL" supabase/quiniela_schema.sql || exit 1; \
+		node scripts/db-sync.js "$$DB_URL" supabase/setup_and_seed.sql || exit 1; \
+		node scripts/db-sync.js "$$DB_URL" supabase/add_penalties_support.sql || exit 1; \
 	else \
-		echo "🔄 Syncing $(FILE)..."; \
-		supabase db query --db-url "$$DB_URL" -f "$(FILE)" >/dev/null && echo "✅ $(FILE) synced." || exit 1; \
+		node scripts/db-sync.js "$$DB_URL" "$(FILE)" || exit 1; \
 	fi
 
 test-coverage: ## Run tests and enforce an 80% coverage floor
