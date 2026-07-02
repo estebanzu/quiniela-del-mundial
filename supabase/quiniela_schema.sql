@@ -297,6 +297,7 @@ end;
 $$;
 
 -- Function to compute leaderboard grouped by username showing points and counts
+drop function if exists public.get_leaderboard() cascade;
 create or replace function public.get_leaderboard()
 returns table(username text, total_points bigint, predictions_count bigint)
 language plpgsql
@@ -997,6 +998,7 @@ end;
 $$;
 
 -- Function to compute leaderboard by phase
+drop function if exists public.get_leaderboard_by_phase() cascade;
 create or replace function public.get_leaderboard_by_phase()
 returns table(
   username text,
